@@ -1,17 +1,16 @@
 import * as React from "react";
 import { useState } from "react";
-import { TextField, Button, Box, Typography, InputAdornment, IconButton } from "@mui/material";
-import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import Visibility from "@mui/icons-material/Visibility";
-import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import accountApi from "../app/AccountApi";
-import AvatarBox from "./AvatarBox";
+import AvatarBox, { AuthLink } from "./AvatarBox";
 import session from "../app/Session";
 import routes from "./routes";
 import { AccountActionLimitReachedError, UserExistsError } from "../app/errors";
 import { fadeReload } from "../app/transition";
+import Button from "./ui/Button";
+import { Field, Input } from "./ui/Field";
+import PasswordInput from "./ui/PasswordInput";
+import { Alert } from "./ui/Primitives";
 
 const Signup = () => {
   const { t } = useTranslation();
@@ -20,8 +19,6 @@ const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -45,126 +42,62 @@ const Signup = () => {
   };
 
   if (!config.enable_signup) {
-    return (
-      <AvatarBox>
-        <Typography sx={{ typography: "h6" }}>{t("signup_disabled")}</Typography>
-      </AvatarBox>
-    );
+    return <AvatarBox title={t("signup_disabled")} />;
   }
 
+  const footer = config.enable_login && <AuthLink to={routes.login}>{t("signup_already_have_account")}</AuthLink>;
+
   return (
-    <AvatarBox>
-      <Typography sx={{ typography: "h6" }}>{t("signup_title")}</Typography>
-      <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
-        <TextField
-          margin="dense"
-          required
-          fullWidth
-          id="username"
-          label={t("signup_form_username")}
-          name="username"
-          value={username}
-          onChange={(ev) => setUsername(ev.target.value.trim())}
-          autoFocus
-        />
-        {config.enable_emails && (
-          <TextField
-            margin="dense"
-            fullWidth
-            id="email"
-            label={t("signup_form_email")}
-            name="email"
-            type="email"
-            value={email}
-            onChange={(ev) => setEmail(ev.target.value.trim())}
+    <AvatarBox title={t("signup_title")} footer={footer}>
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        <Field label={t("signup_form_username")} htmlFor="username">
+          <Input
+            id="username"
+            name="username"
+            required
+            autoComplete="username"
+            autoFocus
+            value={username}
+            onChange={(ev) => setUsername(ev.target.value.trim())}
           />
+        </Field>
+        {config.enable_emails && (
+          <Field label={t("signup_form_email")} htmlFor="email">
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(ev) => setEmail(ev.target.value.trim())}
+            />
+          </Field>
         )}
-        <TextField
-          margin="dense"
-          required
-          fullWidth
-          name="password"
-          label={t("signup_form_password")}
-          type={showPassword ? "text" : "password"}
-          id="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(ev) => setPassword(ev.target.value)}
-          slotProps={{
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label={t("signup_form_toggle_password_visibility")}
-                    onClick={() => setShowPassword(!showPassword)}
-                    onMouseDown={(ev) => ev.preventDefault()}
-                    edge="end"
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-        <TextField
-          margin="dense"
-          required
-          fullWidth
-          name="password"
-          label={t("signup_form_confirm_password")}
-          type={showConfirm ? "text" : "password"}
-          id="confirm"
-          autoComplete="new-password"
-          value={confirm}
-          onChange={(ev) => setConfirm(ev.target.value)}
-          slotProps={{
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label={t("signup_form_toggle_password_visibility")}
-                    onClick={() => setShowConfirm(!showConfirm)}
-                    onMouseDown={(ev) => ev.preventDefault()}
-                    edge="end"
-                  >
-                    {showConfirm ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-        <Button
-          type="submit"
-          fullWidth
-          variant="contained"
-          disabled={username === "" || password === "" || password !== confirm}
-          sx={{ mt: 2, mb: 2 }}
-        >
+        <Field label={t("signup_form_password")} htmlFor="password">
+          <PasswordInput
+            id="password"
+            name="password"
+            required
+            autoComplete="new-password"
+            value={password}
+            onChange={(ev) => setPassword(ev.target.value)}
+          />
+        </Field>
+        <Field label={t("signup_form_confirm_password")} htmlFor="confirm">
+          <PasswordInput
+            id="confirm"
+            name="confirm"
+            required
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(ev) => setConfirm(ev.target.value)}
+          />
+        </Field>
+        {error && <Alert severity="error">{error}</Alert>}
+        <Button type="submit" size="lg" disabled={username === "" || password === "" || password !== confirm}>
           {t("signup_form_button_submit")}
         </Button>
-        {error && (
-          <Box
-            sx={{
-              mb: 1,
-              display: "flex",
-              flexGrow: 1,
-              justifyContent: "center",
-            }}
-          >
-            <WarningAmberIcon color="error" sx={{ mr: 1 }} />
-            <Typography sx={{ color: "error.main" }}>{error}</Typography>
-          </Box>
-        )}
-      </Box>
-      {config.enable_login && (
-        <Typography sx={{ mb: 4 }}>
-          <NavLink to={routes.login} variant="body1">
-            {t("signup_already_have_account")}
-          </NavLink>
-        </Typography>
-      )}
+      </form>
     </AvatarBox>
   );
 };

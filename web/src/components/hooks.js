@@ -385,3 +385,16 @@ export const useVersionChangeListener = (onVersionChange) => {
     };
   }, [onVersionChange]);
 };
+
+const darkQuery = "(prefers-color-scheme: dark)";
+
+export const usePrefersDarkMode = () => {
+  const [prefersDark, setPrefersDark] = useState(() => window.matchMedia(darkQuery).matches);
+  useEffect(() => {
+    const media = window.matchMedia(darkQuery);
+    const listener = (ev) => setPrefersDark(ev.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, []);
+  return prefersDark;
+};

@@ -1,6 +1,5 @@
 import * as React from "react";
 import { Suspense, useContext, useEffect, useState, useMemo } from "react";
-import { CssBaseline, useMediaQuery, ThemeProvider, createTheme } from "@mui/material";
 import { Loader2 } from "lucide-react";
 import "../styles.css";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -9,7 +8,6 @@ import { useTranslation } from "react-i18next";
 import { ToastProvider } from "./ui/Toast";
 import { TooltipProvider } from "./ui/Tooltip";
 import { AllSubscriptions, SingleSubscription } from "./Notifications";
-import { darkTheme, lightTheme } from "./theme";
 import Navigation from "./Navigation";
 import ActionBar from "./ActionBar";
 import Preferences from "./Preferences";
@@ -18,7 +16,7 @@ import userManager from "../app/UserManager";
 import { expandUrl, getKebabCaseLangStr, darkModeEnabled, updateFavicon } from "../app/utils";
 import ErrorBoundary from "./ErrorBoundary";
 import routes from "./routes";
-import { useAccountListener, useBackgroundProcesses, useConnectionListeners, useWebPushTopics } from "./hooks";
+import { useAccountListener, useBackgroundProcesses, useConnectionListeners, usePrefersDarkMode, useWebPushTopics } from "./hooks";
 import PublishDialog from "./PublishDialog";
 import Messaging from "./Messaging";
 import Login from "./Login";
@@ -29,7 +27,6 @@ import PasswordReset from "./PasswordReset";
 import PasswordResetRequest from "./PasswordResetRequest";
 import initI18n from "../app/i18n"; // Translations!
 import prefs from "../app/Prefs";
-import RTLCacheProvider from "./RTLCacheProvider";
 import session from "../app/Session";
 import AccountContext from "./AccountContext";
 import { PrefCacheProvider } from "./PrefCache";
@@ -42,10 +39,9 @@ const App = () => {
   const languageDir = i18n.dir();
   const [account, setAccount] = useState(null);
   const accountMemo = useMemo(() => ({ account, setAccount }), [account, setAccount]);
-  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
+  const prefersDarkMode = usePrefersDarkMode();
   const themePreference = useLiveQuery(() => prefs.theme());
   const isDark = darkModeEnabled(prefersDarkMode, themePreference);
-  const theme = React.useMemo(() => createTheme({ ...(isDark ? darkTheme : lightTheme), direction: languageDir }), [isDark, languageDir]);
 
   useEffect(() => {
     document.documentElement.setAttribute("lang", getKebabCaseLangStr(i18n.language));
@@ -75,37 +71,32 @@ const App = () => {
 
   return (
     <Suspense fallback={<Loader />}>
-      <RTLCacheProvider>
-        <BrowserRouter>
-          <ThemeProvider theme={theme}>
-            <AccountContext.Provider value={accountMemo}>
-              <CssBaseline />
-              <TooltipProvider>
-                <ToastProvider>
-                  <ErrorBoundary>
-                    <Routes>
-                      <Route element={<AuthLayout />}>
-                        <Route path={routes.login} element={<Login />} />
-                        <Route path={routes.signup} element={<Signup />} />
-                        <Route path={routes.passwordResetRequest} element={<PasswordResetRequest />} />
-                        <Route path={routes.passwordReset} element={<PasswordReset />} />
-                        <Route path={routes.emailVerify} element={<EmailVerify />} />
-                      </Route>
-                      <Route element={<Layout />}>
-                        <Route path={routes.app} element={<AllSubscriptions />} />
-                        <Route path={routes.account} element={<Account />} />
-                        <Route path={routes.settings} element={<Preferences />} />
-                        <Route path={routes.subscription} element={<SingleSubscription />} />
-                        <Route path={routes.subscriptionExternal} element={<SingleSubscription />} />
-                      </Route>
-                    </Routes>
-                  </ErrorBoundary>
-                </ToastProvider>
-              </TooltipProvider>
-            </AccountContext.Provider>
-          </ThemeProvider>
-        </BrowserRouter>
-      </RTLCacheProvider>
+      <BrowserRouter>
+        <AccountContext.Provider value={accountMemo}>
+          <TooltipProvider>
+            <ToastProvider>
+              <ErrorBoundary>
+                <Routes>
+                  <Route element={<AuthLayout />}>
+                    <Route path={routes.login} element={<Login />} />
+                    <Route path={routes.signup} element={<Signup />} />
+                    <Route path={routes.passwordResetRequest} element={<PasswordResetRequest />} />
+                    <Route path={routes.passwordReset} element={<PasswordReset />} />
+                    <Route path={routes.emailVerify} element={<EmailVerify />} />
+                  </Route>
+                  <Route element={<Layout />}>
+                    <Route path={routes.app} element={<AllSubscriptions />} />
+                    <Route path={routes.account} element={<Account />} />
+                    <Route path={routes.settings} element={<Preferences />} />
+                    <Route path={routes.subscription} element={<SingleSubscription />} />
+                    <Route path={routes.subscriptionExternal} element={<SingleSubscription />} />
+                  </Route>
+                </Routes>
+              </ErrorBoundary>
+            </ToastProvider>
+          </TooltipProvider>
+        </AccountContext.Provider>
+      </BrowserRouter>
     </Suspense>
   );
 };

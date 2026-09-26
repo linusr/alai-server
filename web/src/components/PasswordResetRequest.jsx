@@ -1,17 +1,15 @@
 import * as React from "react";
 import { useState } from "react";
-import { TextField, Button, Box, Typography } from "@mui/material";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
-import { NavLink } from "react-router-dom";
+import { CheckCircle2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import accountApi from "../app/AccountApi";
-import AvatarBox from "./AvatarBox";
+import AvatarBox, { AuthLink } from "./AvatarBox";
 import routes from "./routes";
+import Button from "./ui/Button";
+import { Field, Input } from "./ui/Field";
 
-// PasswordResetRequest is the standalone "request a password reset" page, reached from the login page.
-// It collects a username/email and asks the server to email a reset link. The response is uniform,
-// so the page always shows the same confirmation. Completing the reset happens on the separate
-// PasswordReset landing page that the emailed link points to.
+// Asks the server to email a reset link for a username or email. The server's response is uniform,
+// so the page always shows the same confirmation. The emailed link opens PasswordReset.
 const PasswordResetRequest = () => {
   const { t } = useTranslation();
   const [identifier, setIdentifier] = useState("");
@@ -27,68 +25,45 @@ const PasswordResetRequest = () => {
       console.log(`[PasswordResetRequest] Request failed`, e);
     } finally {
       setSending(false);
-      setSent(true); // Uniform outcome regardless of success/failure (enumeration-safe)
+      setSent(true); // Same outcome on success and failure, so accounts cannot be enumerated
     }
   };
 
+  const backToLogin = <AuthLink to={routes.login}>{t("reset_password_back_to_login")}</AuthLink>;
+
   if (!config.enable_reset_password) {
-    return (
-      <AvatarBox>
-        <Typography sx={{ typography: "h6" }}>{t("reset_password_disabled")}</Typography>
-        <Typography sx={{ mt: 2 }}>
-          <NavLink to={routes.login} variant="body1">
-            {t("reset_password_back_to_login")}
-          </NavLink>
-        </Typography>
-      </AvatarBox>
-    );
+    return <AvatarBox title={t("reset_password_disabled")} footer={backToLogin} />;
   }
 
   if (sent) {
     return (
-      <AvatarBox>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <CheckCircleOutlineIcon color="success" sx={{ fontSize: 28 }} />
-          <Typography sx={{ typography: "h6" }}>{t("reset_password_sent_title")}</Typography>
-        </Box>
-        <Typography sx={{ mt: 1, textAlign: "center" }}>{t("reset_password_sent_description")}</Typography>
-        <Typography sx={{ mt: 2, mb: 4 }}>
-          <NavLink to={routes.login} variant="body1">
-            {t("reset_password_back_to_login")}
-          </NavLink>
-        </Typography>
+      <AvatarBox title={t("reset_password_sent_title")} icon={CheckCircle2} iconClassName="text-success" footer={backToLogin}>
+        <p className="text-center text-sm text-muted">{t("reset_password_sent_description")}</p>
       </AvatarBox>
     );
   }
 
   return (
-    <AvatarBox>
-      <Typography sx={{ typography: "h6" }}>{t("reset_password_request_title")}</Typography>
-      <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
-        <Typography sx={{ mt: 1 }}>{t("reset_password_request_description")}</Typography>
-        <Typography sx={{ mt: 1, mb: 1.5, fontWeight: "bold" }}>{t("reset_password_request_primary_required")}</Typography>
-        <TextField
-          margin="dense"
-          required
-          fullWidth
-          id="identifier"
-          label={t("reset_password_request_identifier_label")}
-          name="identifier"
-          value={identifier}
-          onChange={(ev) => setIdentifier(ev.target.value.trim())}
-          autoFocus
-        />
-        <Button type="submit" fullWidth variant="contained" disabled={sending || identifier === ""} sx={{ mt: 2, mb: 2 }}>
+    <AvatarBox title={t("reset_password_request_title")} footer={config.enable_login && backToLogin}>
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        <div className="space-y-1.5 text-sm">
+          <p className="text-muted">{t("reset_password_request_description")}</p>
+          <p className="font-medium">{t("reset_password_request_primary_required")}</p>
+        </div>
+        <Field label={t("reset_password_request_identifier_label")} htmlFor="identifier">
+          <Input
+            id="identifier"
+            name="identifier"
+            required
+            autoFocus
+            value={identifier}
+            onChange={(ev) => setIdentifier(ev.target.value.trim())}
+          />
+        </Field>
+        <Button type="submit" size="lg" disabled={sending || identifier === ""}>
           {t("reset_password_request_button_submit")}
         </Button>
-      </Box>
-      {config.enable_login && (
-        <Typography sx={{ mb: 4 }}>
-          <NavLink to={routes.login} variant="body1">
-            {t("reset_password_back_to_login")}
-          </NavLink>
-        </Typography>
-      )}
+      </form>
     </AvatarBox>
   );
 };

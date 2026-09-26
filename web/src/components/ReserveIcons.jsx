@@ -1,48 +1,23 @@
 import * as React from "react";
-import Lock from "@mui/icons-material/Lock";
-import Public from "@mui/icons-material/Public";
-import { Box } from "@mui/material";
+import { Globe, Lock } from "lucide-react";
+import cn from "./ui/cn";
 
-export const PermissionReadWrite = React.forwardRef((props, ref) => <PermissionInternal icon={Public} ref={ref} {...props} />);
+const PermissionInternal = React.forwardRef(({ icon: Icon, text, size = "medium", className, ...props }, ref) => (
+  <span ref={ref} className={cn("relative inline-flex shrink-0 align-middle text-muted", className)} {...props}>
+    <Icon className={size === "small" ? "size-4" : "size-5"} aria-hidden />
+    {text && <span className="absolute -bottom-0.5 -right-1.5 text-[10px] font-semibold leading-none">{text}</span>}
+  </span>
+));
+PermissionInternal.displayName = "PermissionInternal";
 
-export const PermissionDenyAll = React.forwardRef((props, ref) => <PermissionInternal icon={Lock} ref={ref} {...props} />);
+// `sx` is dropped so callers still passing MUI styling don't leak it onto the DOM.
+const permissionIcon = (icon, text) => {
+  const Component = React.forwardRef(({ sx, ...props }, ref) => <PermissionInternal icon={icon} text={text} ref={ref} {...props} />);
+  Component.displayName = "PermissionIcon";
+  return Component;
+};
 
-export const PermissionRead = React.forwardRef((props, ref) => <PermissionInternal icon={Public} text="R" ref={ref} {...props} />);
-
-export const PermissionWrite = React.forwardRef((props, ref) => <PermissionInternal icon={Public} text="W" ref={ref} {...props} />);
-
-const PermissionInternal = React.forwardRef((props, ref) => {
-  const size = props.size ?? "medium";
-  const Icon = props.icon;
-  return (
-    <Box
-      ref={ref}
-      {...props}
-      style={{
-        position: "relative",
-        display: "inline-flex",
-        verticalAlign: "middle",
-        height: "24px",
-      }}
-    >
-      <Icon fontSize={size} sx={{ color: "gray" }} />
-      {props.text && (
-        <Box
-          sx={{
-            position: "absolute",
-            right: "-6px",
-            bottom: "5px",
-            fontSize: 10,
-            fontWeight: 600,
-            color: "gray",
-            width: "8px",
-            height: "8px",
-            marginTop: "3px",
-          }}
-        >
-          {props.text}
-        </Box>
-      )}
-    </Box>
-  );
-});
+export const PermissionReadWrite = permissionIcon(Globe);
+export const PermissionDenyAll = permissionIcon(Lock);
+export const PermissionRead = permissionIcon(Globe, "R");
+export const PermissionWrite = permissionIcon(Globe, "W");

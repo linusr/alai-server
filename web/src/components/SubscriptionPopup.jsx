@@ -1,88 +1,48 @@
 import * as React from "react";
 import { useContext, useState } from "react";
-import {
-  Button,
-  TextField,
-  Dialog,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  Chip,
-  InputAdornment,
-  Portal,
-  Snackbar,
-  useMediaQuery,
-  MenuItem,
-  IconButton,
-  ListItemIcon,
-  useTheme,
-} from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import Clear from "@mui/icons-material/Clear";
-import ClearAll from "@mui/icons-material/ClearAll";
-import Edit from "@mui/icons-material/Edit";
-import EnhancedEncryption from "@mui/icons-material/EnhancedEncryption";
-import Lock from "@mui/icons-material/Lock";
-import LockOpen from "@mui/icons-material/LockOpen";
-import Notifications from "@mui/icons-material/Notifications";
-import NotificationsOff from "@mui/icons-material/NotificationsOff";
-import RemoveCircle from "@mui/icons-material/RemoveCircle";
-import Send from "@mui/icons-material/Send";
+import { Bell, BellOff, Eraser, Lock, LockKeyhole, LockOpen, MinusCircle, Pencil, Send, X } from "lucide-react";
 import subscriptionManager from "../app/SubscriptionManager";
-import DialogFooter from "./DialogFooter";
 import accountApi, { Role } from "../app/AccountApi";
 import session from "../app/Session";
 import routes from "./routes";
-import PopupMenu from "./PopupMenu";
 import { formatDateTime, shuffle } from "../app/utils";
 import api from "../app/Api";
 import AccountContext from "./AccountContext";
 import { usePrefCache } from "./PrefCache";
-import { ReserveAddDialog, ReserveDeleteDialog, ReserveEditDialog } from "./ReserveDialogs";
+import { DialogError, ReserveAddDialog, ReserveDeleteDialog, ReserveEditDialog } from "./ReserveDialogs";
 import { UnauthorizedError } from "../app/errors";
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./ui/Menu";
+import { Dialog, DialogContent, DialogFooter } from "./ui/Dialog";
+import { Input } from "./ui/Field";
+import Button from "./ui/Button";
+import IconButton from "./ui/IconButton";
+import { Chip } from "./ui/Primitives";
+import { useToast } from "./ui/Toast";
 
-export const SubscriptionPopup = (props) => {
+/**
+ * Topic actions menu; `children` is the trigger element. The menu is non-modal so the dialogs it opens
+ * own focus and pointer events once it closes.
+ */
+export const SubscriptionPopup = ({ subscription, align = "end", children }) => {
   const { t } = useTranslation();
+  const toast = useToast();
   const { dateFormat, timeFormat } = usePrefCache();
   const { account } = useContext(AccountContext);
   const navigate = useNavigate();
-  const [displayNameDialogOpen, setDisplayNameDialogOpen] = useState(false);
-  const [reserveAddDialogOpen, setReserveAddDialogOpen] = useState(false);
-  const [reserveEditDialogOpen, setReserveEditDialogOpen] = useState(false);
-  const [reserveDeleteDialogOpen, setReserveDeleteDialogOpen] = useState(false);
-  const [showPublishError, setShowPublishError] = useState(false);
-  const { subscription } = props;
-  const placement = props.placement ?? "left";
+  const [dialog, setDialog] = useState(null);
   const reservations = account?.reservations || [];
+  const closeDialog = () => setDialog(null);
 
   const showReservationAdd = config.enable_reservations && !subscription?.reservation && account?.stats.reservations_remaining > 0;
   const showReservationAddDisabled =
-    !showReservationAdd &&
-    config.enable_reservations &&
-    !subscription?.reservation &&
-    (config.enable_payments || account?.stats.reservations_remaining === 0);
+    !showReservationAdd && config.enable_reservations && !subscription?.reservation && account?.stats.reservations_remaining === 0;
   const showReservationEdit = config.enable_reservations && !!subscription?.reservation;
   const showReservationDelete = config.enable_reservations && !!subscription?.reservation;
 
-  const handleChangeDisplayName = async () => {
-    setDisplayNameDialogOpen(true);
-  };
-
-  const handleReserveAdd = async () => {
-    setReserveAddDialogOpen(true);
-  };
-
-  const handleReserveEdit = async () => {
-    setReserveEditDialogOpen(true);
-  };
-
-  const handleReserveDelete = async () => {
-    setReserveDeleteDialogOpen(true);
-  };
-
   const handleSendTestMessage = async () => {
-    const { baseUrl, topic } = props.subscription;
+    const { baseUrl, topic } = subscription;
     const tags = shuffle([
       "grinning",
       "octopus",
@@ -134,20 +94,16 @@ export const SubscriptionPopup = (props) => {
       `It's interesting to hear what people use ntfy for. I've heard people talk about using it for so many cool things. What do you use it for?`,
     ])[0];
     try {
-      await api.publish(baseUrl, topic, message, {
-        title,
-        priority,
-        tags,
-      });
+      await api.publish(baseUrl, topic, message, { title, priority, tags });
     } catch (e) {
       console.log(`[SubscriptionPopup] Error publishing message`, e);
-      setShowPublishError(true);
+      toast(t("message_bar_error_publishing"));
     }
   };
 
   const handleClearAll = async () => {
-    console.log(`[SubscriptionPopup] Deleting all notifications from ${props.subscription.id}`);
-    await subscriptionManager.deleteNotifications(props.subscription.id);
+    console.log(`[SubscriptionPopup] Deleting all notifications from ${subscription.id}`);
+    await subscriptionManager.deleteNotifications(subscription.id);
   };
 
   const handleSetMutedUntil = async (mutedUntil) => {
@@ -155,11 +111,11 @@ export const SubscriptionPopup = (props) => {
   };
 
   const handleUnsubscribe = async () => {
-    console.log(`[SubscriptionPopup] Unsubscribing from ${props.subscription.id}`, props.subscription);
-    await subscriptionManager.remove(props.subscription);
+    console.log(`[SubscriptionPopup] Unsubscribing from ${subscription.id}`, subscription);
+    await subscriptionManager.remove(subscription);
     if (session.exists() && !subscription.internal) {
       try {
-        await accountApi.deleteSubscription(props.subscription.baseUrl, props.subscription.topic);
+        await accountApi.deleteSubscription(subscription.baseUrl, subscription.topic);
       } catch (e) {
         console.log(`[SubscriptionPopup] Error unsubscribing`, e);
         if (e instanceof UnauthorizedError) {
@@ -177,126 +133,70 @@ export const SubscriptionPopup = (props) => {
 
   return (
     <>
-      <PopupMenu horizontal={placement} anchorEl={props.anchor} open={!!props.anchor} onClose={props.onClose}>
-        <MenuItem onClick={handleChangeDisplayName}>
-          <ListItemIcon>
-            <Edit fontSize="small" />
-          </ListItemIcon>
-          {t("action_bar_change_display_name")}
-        </MenuItem>
-        {showReservationAdd && (
-          <MenuItem onClick={handleReserveAdd}>
-            <ListItemIcon>
-              <Lock fontSize="small" />
-            </ListItemIcon>
-            {t("action_bar_reservation_add")}
+      <Menu modal={false}>
+        <MenuTrigger asChild>{children}</MenuTrigger>
+        <MenuContent align={align}>
+          <MenuItem icon={Pencil} onSelect={() => setDialog("displayName")}>
+            {t("action_bar_change_display_name")}
           </MenuItem>
-        )}
-        {showReservationAddDisabled && (
-          <MenuItem sx={{ cursor: "default" }}>
-            <ListItemIcon>
-              <Lock fontSize="small" color="disabled" />
-            </ListItemIcon>
-            <span style={{ opacity: 0.3 }}>{t("action_bar_reservation_add")}</span>
-            <ReserveLimitChip />
+          {showReservationAdd && (
+            <MenuItem icon={Lock} onSelect={() => setDialog("reserveAdd")}>
+              {t("action_bar_reservation_add")}
+            </MenuItem>
+          )}
+          {showReservationAddDisabled && (
+            <MenuItem icon={Lock} disabled>
+              <span className="flex-1">{t("action_bar_reservation_add")}</span>
+              <LimitReachedChip />
+            </MenuItem>
+          )}
+          {showReservationEdit && (
+            <MenuItem icon={LockKeyhole} onSelect={() => setDialog("reserveEdit")}>
+              {t("action_bar_reservation_edit")}
+            </MenuItem>
+          )}
+          {showReservationDelete && (
+            <MenuItem icon={LockOpen} onSelect={() => setDialog("reserveDelete")}>
+              {t("action_bar_reservation_delete")}
+            </MenuItem>
+          )}
+          <MenuSeparator />
+          <MenuItem icon={Send} onSelect={handleSendTestMessage}>
+            {t("action_bar_send_test_notification")}
           </MenuItem>
-        )}
-        {showReservationEdit && (
-          <MenuItem onClick={handleReserveEdit}>
-            <ListItemIcon>
-              <EnhancedEncryption fontSize="small" />
-            </ListItemIcon>
-            {t("action_bar_reservation_edit")}
+          <MenuItem icon={Eraser} onSelect={handleClearAll}>
+            {t("action_bar_clear_notifications")}
           </MenuItem>
-        )}
-        {showReservationDelete && (
-          <MenuItem onClick={handleReserveDelete}>
-            <ListItemIcon>
-              <LockOpen fontSize="small" />
-            </ListItemIcon>
-            {t("action_bar_reservation_delete")}
+          {subscription.mutedUntil ? (
+            <MenuItem icon={Bell} onSelect={() => handleSetMutedUntil(0)}>
+              {t("action_bar_unmute_notifications")}
+            </MenuItem>
+          ) : (
+            <MenuItem icon={BellOff} onSelect={() => handleSetMutedUntil(1)}>
+              {t("action_bar_mute_notifications")}
+            </MenuItem>
+          )}
+          <MenuSeparator />
+          <MenuItem icon={MinusCircle} danger onSelect={handleUnsubscribe}>
+            {t("action_bar_unsubscribe")}
           </MenuItem>
-        )}
-        <MenuItem onClick={handleSendTestMessage}>
-          <ListItemIcon>
-            <Send fontSize="small" />
-          </ListItemIcon>
-          {t("action_bar_send_test_notification")}
-        </MenuItem>
-        <MenuItem onClick={handleClearAll}>
-          <ListItemIcon>
-            <ClearAll fontSize="small" />
-          </ListItemIcon>
-          {t("action_bar_clear_notifications")}
-        </MenuItem>
-        {!!subscription.mutedUntil && (
-          <MenuItem onClick={() => handleSetMutedUntil(0)}>
-            <ListItemIcon>
-              <Notifications fontSize="small" />
-            </ListItemIcon>
-            {t("action_bar_unmute_notifications")}
-          </MenuItem>
-        )}
-        {!subscription.mutedUntil && (
-          <MenuItem onClick={() => handleSetMutedUntil(1)}>
-            <ListItemIcon>
-              <NotificationsOff fontSize="small" />
-            </ListItemIcon>
-            {t("action_bar_mute_notifications")}
-          </MenuItem>
-        )}
-        <MenuItem onClick={handleUnsubscribe}>
-          <ListItemIcon>
-            <RemoveCircle fontSize="small" />
-          </ListItemIcon>
-          {t("action_bar_unsubscribe")}
-        </MenuItem>
-      </PopupMenu>
-      <Portal>
-        <Snackbar
-          open={showPublishError}
-          autoHideDuration={3000}
-          onClose={() => setShowPublishError(false)}
-          message={t("message_bar_error_publishing")}
-        />
-        <DisplayNameDialog open={displayNameDialogOpen} subscription={subscription} onClose={() => setDisplayNameDialogOpen(false)} />
-        {showReservationAdd && (
-          <ReserveAddDialog
-            open={reserveAddDialogOpen}
-            topic={subscription.topic}
-            reservations={reservations}
-            onClose={() => setReserveAddDialogOpen(false)}
-          />
-        )}
-        {showReservationEdit && (
-          <ReserveEditDialog
-            open={reserveEditDialogOpen}
-            reservation={subscription.reservation}
-            reservations={props.reservations}
-            onClose={() => setReserveEditDialogOpen(false)}
-          />
-        )}
-        {showReservationDelete && (
-          <ReserveDeleteDialog
-            open={reserveDeleteDialogOpen}
-            topic={subscription.topic}
-            onClose={() => setReserveDeleteDialogOpen(false)}
-          />
-        )}
-      </Portal>
+        </MenuContent>
+      </Menu>
+      {dialog === "displayName" && <DisplayNameDialog subscription={subscription} onClose={closeDialog} />}
+      {dialog === "reserveAdd" && <ReserveAddDialog open topic={subscription.topic} reservations={reservations} onClose={closeDialog} />}
+      {dialog === "reserveEdit" && <ReserveEditDialog open reservation={subscription.reservation} onClose={closeDialog} />}
+      {dialog === "reserveDelete" && <ReserveDeleteDialog open topic={subscription.topic} onClose={closeDialog} />}
     </>
   );
 };
 
-const DisplayNameDialog = (props) => {
-  const theme = useTheme();
+const DisplayNameDialog = ({ subscription, onClose }) => {
   const { t } = useTranslation();
-  const { subscription } = props;
   const [error, setError] = useState("");
   const [displayName, setDisplayName] = useState(subscription.displayName ?? "");
-  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const handleSave = async () => {
+  const handleSave = async (ev) => {
+    ev.preventDefault();
     await subscriptionManager.setDisplayName(subscription.id, displayName);
     if (session.exists() && !subscription.internal) {
       try {
@@ -312,89 +212,58 @@ const DisplayNameDialog = (props) => {
         }
       }
     }
-    props.onClose();
+    onClose();
   };
 
   return (
-    <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
-      <DialogTitle>{t("display_name_dialog_title")}</DialogTitle>
-      <DialogContent>
-        <DialogContentText>{t("display_name_dialog_description")}</DialogContentText>
-        <TextField
-          autoFocus
-          placeholder={t("display_name_dialog_placeholder")}
-          value={displayName}
-          onChange={(ev) => setDisplayName(ev.target.value)}
-          type="text"
-          fullWidth
-          variant="standard"
-          slotProps={{
-            htmlInput: {
-              maxLength: 64,
-              "aria-label": t("display_name_dialog_placeholder"),
-            },
-            input: {
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setDisplayName("")} edge="end">
-                    <Clear />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent title={t("display_name_dialog_title")} description={t("display_name_dialog_description")}>
+        <form onSubmit={handleSave}>
+          <div className="relative">
+            <Input
+              autoFocus
+              maxLength={64}
+              aria-label={t("display_name_dialog_placeholder")}
+              placeholder={t("display_name_dialog_placeholder")}
+              value={displayName}
+              onChange={(ev) => setDisplayName(ev.target.value)}
+              className="pr-10"
+            />
+            {displayName && (
+              <IconButton
+                size="sm"
+                label={t("common_clear")}
+                tooltip={false}
+                onClick={() => setDisplayName("")}
+                className="absolute right-1 top-1"
+              >
+                <X className="size-4" />
+              </IconButton>
+            )}
+          </div>
+          <DialogError error={error} />
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              {t("common_cancel")}
+            </Button>
+            <Button type="submit">{t("common_save")}</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
-      <DialogFooter status={error}>
-        <Button onClick={props.onClose}>{t("common_cancel")}</Button>
-        <Button onClick={handleSave}>{t("common_save")}</Button>
-      </DialogFooter>
     </Dialog>
   );
 };
 
-export const ReserveLimitChip = () => {
-  const { account } = useContext(AccountContext);
-  if (account?.role === Role.ADMIN || account?.stats.reservations_remaining > 0) {
-    return <></>;
-  }
-  if (config.enable_payments) {
-    return account?.limits.reservations > 0 ? <LimitReachedChip /> : <ProChip />;
-  }
-  if (account) {
-    return <LimitReachedChip />;
-  }
-  return <></>;
-};
-
 const LimitReachedChip = () => {
   const { t } = useTranslation();
-  return (
-    <Chip
-      label={t("action_bar_reservation_limit_reached")}
-      variant="outlined"
-      color="primary"
-      sx={{
-        opacity: 0.8,
-        borderWidth: "2px",
-        height: "24px",
-        marginLeft: "5px",
-      }}
-    />
-  );
+  return <Chip className="border border-accent/40 bg-transparent text-accent">{t("action_bar_reservation_limit_reached")}</Chip>;
 };
 
-export const ProChip = () => (
-  <Chip
-    label="ntfy Pro"
-    variant="outlined"
-    color="primary"
-    sx={{
-      opacity: 0.8,
-      fontWeight: "bold",
-      borderWidth: "2px",
-      height: "24px",
-      marginLeft: "5px",
-    }}
-  />
-);
+/** "Limit reached" marker next to reservation actions; nothing for admins or users with reservations left. */
+export const ReserveLimitChip = () => {
+  const { account } = useContext(AccountContext);
+  if (!account || account.role === Role.ADMIN || account.stats.reservations_remaining > 0) {
+    return null;
+  }
+  return <LimitReachedChip />;
+};

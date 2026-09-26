@@ -233,7 +233,6 @@ const NavItem = ({ icon: Icon, selected, onClick, children }) => (
 const SubscriptionItem = ({ subscription, selected, onNavigate }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
   const displayName = topicDisplayName(subscription);
   const connecting = subscription.state === ConnectionState.Connecting;
   const unread = subscription.new <= 99 ? subscription.new : "99+";
@@ -272,15 +271,15 @@ const SubscriptionItem = ({ subscription, selected, onNavigate }) => {
           <span className="min-w-5 rounded-full bg-accent px-1.5 text-center text-xs font-bold leading-5 text-accent-fg">{unread}</span>
         )}
       </button>
-      <button
-        type="button"
-        aria-label={t("action_bar_toggle_action_menu")}
-        onClick={(e) => setMenuAnchorEl(e.currentTarget)}
-        className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted opacity-0 transition-opacity hover:bg-surface hover:text-text focus-visible:opacity-100 group-hover:opacity-100 max-sm:opacity-100"
-      >
-        <MoreHorizontal className="size-4" />
-      </button>
-      <SubscriptionPopup subscription={subscription} anchor={menuAnchorEl} onClose={() => setMenuAnchorEl(null)} />
+      <SubscriptionPopup subscription={subscription} align="start">
+        <button
+          type="button"
+          aria-label={t("action_bar_toggle_action_menu")}
+          className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted opacity-0 transition-opacity hover:bg-surface hover:text-text focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100 max-sm:opacity-100"
+        >
+          <MoreHorizontal className="size-4" />
+        </button>
+      </SubscriptionPopup>
     </div>
   );
 };

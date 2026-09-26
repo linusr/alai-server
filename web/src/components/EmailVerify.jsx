@@ -1,23 +1,19 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
-import { Typography, Button, Box, CircularProgress } from "@mui/material";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutlineOutlined";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import accountApi from "../app/AccountApi";
 import AvatarBox from "./AvatarBox";
 import routes from "./routes";
+import Button from "./ui/Button";
 
-// Verification states for the email-verify landing page
 const STATUS_VERIFYING = "verifying";
 const STATUS_SUCCESS = "success";
 const STATUS_ERROR = "error";
 
-// EmailVerify is the magic-link landing page for email verification. It performs the verification
-// via a POST (the GET that loads this page has no side effects, so link prefetchers / scanners
-// cannot consume the single-use token). The raw token is stripped from the URL on load to keep
-// it out of browser history and Referer headers.
+// Magic-link landing page for email verification. Verification is a POST, so link prefetchers and
+// scanners loading this page cannot consume the single-use token. The token is stripped from the URL on load.
 const EmailVerify = () => {
   const { t } = useTranslation();
   const { token } = useParams();
@@ -27,10 +23,9 @@ const EmailVerify = () => {
 
   useEffect(() => {
     if (ran.current) {
-      return; // Guard against double-invoke (e.g. React StrictMode) consuming the token twice
+      return; // StrictMode double-invokes effects; the token is single-use
     }
     ran.current = true;
-    // Strip the token from the URL immediately (keep it out of history / Referer)
     window.history.replaceState(null, "", routes.account);
     (async () => {
       try {
@@ -43,38 +38,21 @@ const EmailVerify = () => {
     })();
   }, [token]);
 
+  if (status === STATUS_VERIFYING) {
+    return <AvatarBox title={t("email_verify_progress_title")} icon={Loader2} iconClassName="animate-spin text-muted" />;
+  }
+
+  const success = status === STATUS_SUCCESS;
   return (
-    <AvatarBox>
-      {status === STATUS_VERIFYING && (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <CircularProgress size={24} />
-          <Typography sx={{ typography: "h6" }}>{t("email_verify_progress_title")}</Typography>
-        </Box>
-      )}
-      {status === STATUS_SUCCESS && (
-        <>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <CheckCircleOutlineIcon color="success" sx={{ fontSize: 28 }} />
-            <Typography sx={{ typography: "h6" }}>{t("email_verify_success_title")}</Typography>
-          </Box>
-          <Typography sx={{ mt: 1, textAlign: "center" }}>{t("email_verify_success_description")}</Typography>
-          <Button onClick={() => navigate(routes.account)} variant="contained" sx={{ mt: 2 }}>
-            {t("email_verify_button_account")}
-          </Button>
-        </>
-      )}
-      {status === STATUS_ERROR && (
-        <>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <ErrorOutlineIcon color="error" sx={{ fontSize: 28 }} />
-            <Typography sx={{ typography: "h6" }}>{t("email_verify_error_title")}</Typography>
-          </Box>
-          <Typography sx={{ mt: 1, textAlign: "center" }}>{t("email_verify_error_description")}</Typography>
-          <Button onClick={() => navigate(routes.account)} variant="contained" sx={{ mt: 2 }}>
-            {t("email_verify_button_account")}
-          </Button>
-        </>
-      )}
+    <AvatarBox
+      title={t(success ? "email_verify_success_title" : "email_verify_error_title")}
+      icon={success ? CheckCircle2 : AlertCircle}
+      iconClassName={success ? "text-success" : "text-danger"}
+    >
+      <p className="text-center text-sm text-muted">{t(success ? "email_verify_success_description" : "email_verify_error_description")}</p>
+      <Button size="lg" className="mt-5 w-full" onClick={() => navigate(routes.account)}>
+        {t("email_verify_button_account")}
+      </Button>
     </AvatarBox>
   );
 };

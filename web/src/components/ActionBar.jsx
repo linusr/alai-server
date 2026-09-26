@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Bell, BellOff, Menu as MenuIcon, MoreHorizontal, RefreshCw } from "lucide-react";
@@ -45,7 +44,6 @@ const ActionBar = (props) => {
 
 const TopicActions = ({ subscription }) => {
   const { t } = useTranslation();
-  const [anchorEl, setAnchorEl] = useState(null);
   const muted = !!subscription.mutedUntil;
 
   const handleToggleMute = async () => {
@@ -57,10 +55,11 @@ const TopicActions = ({ subscription }) => {
       <IconButton label={t("action_bar_toggle_mute")} onClick={handleToggleMute} className={muted ? "text-warning" : undefined}>
         {muted ? <BellOff className="size-5" /> : <Bell className="size-5" />}
       </IconButton>
-      <IconButton label={t("action_bar_toggle_action_menu")} onClick={(ev) => setAnchorEl(ev.currentTarget)}>
-        <MoreHorizontal className="size-5" />
-      </IconButton>
-      <SubscriptionPopup subscription={subscription} anchor={anchorEl} placement="right" onClose={() => setAnchorEl(null)} />
+      <SubscriptionPopup subscription={subscription}>
+        <IconButton label={t("action_bar_toggle_action_menu")}>
+          <MoreHorizontal className="size-5" />
+        </IconButton>
+      </SubscriptionPopup>
     </>
   );
 };

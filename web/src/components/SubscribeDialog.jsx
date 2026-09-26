@@ -1,27 +1,12 @@
 import * as React from "react";
 import { useContext, useState } from "react";
-import {
-  Button,
-  TextField,
-  Dialog,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  Autocomplete,
-  FormControlLabel,
-  FormGroup,
-  useMediaQuery,
-  Switch,
-  useTheme,
-} from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { useLiveQuery } from "dexie-react-hooks";
+import { Shuffle } from "lucide-react";
 import api from "../app/Api";
-import { randomAlphanumericString, topicUrl, validTopic, validUrl } from "../app/utils";
+import { randomAlphanumericString, shortUrl, topicUrl, validTopic } from "../app/utils";
 import userManager from "../app/UserManager";
 import subscriptionManager from "../app/SubscriptionManager";
 import poller from "../app/Poller";
-import DialogFooter from "./DialogFooter";
 import session from "../app/Session";
 import routes from "./routes";
 import accountApi, { Permission, Role } from "../app/AccountApi";
@@ -29,9 +14,11 @@ import ReserveTopicSelect from "./ReserveTopicSelect";
 import AccountContext from "./AccountContext";
 import { TopicReservedError, UnauthorizedError } from "../app/errors";
 import { ReserveLimitChip } from "./SubscriptionPopup";
-import prefs from "../app/Prefs";
-
-const publicBaseUrl = "https://ntfy.sh";
+import { DialogError } from "./ReserveDialogs";
+import { Dialog, DialogContent, DialogFooter } from "./ui/Dialog";
+import { Field, Input } from "./ui/Field";
+import Button from "./ui/Button";
+import Switch from "./ui/Switch";
 
 export const subscribeTopic = async (baseUrl, topic, opts) => {
   const subscription = await subscriptionManager.upsert(baseUrl, topic, opts);
@@ -48,36 +35,38 @@ export const subscribeTopic = async (baseUrl, topic, opts) => {
   return subscription;
 };
 
+/** Subscribes to a topic on this server, asking for credentials when the topic requires them. */
 const SubscribeDialog = (props) => {
-  const theme = useTheme();
-  const [baseUrl, setBaseUrl] = useState("");
+  const { t } = useTranslation();
   const [topic, setTopic] = useState("");
   const [showLoginPage, setShowLoginPage] = useState(false);
-  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
   const handleSuccess = async () => {
     console.log(`[SubscribeDialog] Subscribing to topic ${topic}`);
-    const actualBaseUrl = baseUrl || config.base_url;
-    const subscription = await subscribeTopic(actualBaseUrl, topic, {});
+    const subscription = await subscribeTopic(config.base_url, topic, {});
     poller.pollInBackground(subscription); // Dangle!
     props.onSuccess(subscription);
   };
 
   return (
-    <Dialog open={props.open} onClose={props.onCancel} fullScreen={fullScreen}>
-      {!showLoginPage && (
-        <SubscribePage
-          baseUrl={baseUrl}
-          setBaseUrl={setBaseUrl}
-          topic={topic}
-          setTopic={setTopic}
-          subscriptions={props.subscriptions}
-          onCancel={props.onCancel}
-          onNeedsLogin={() => setShowLoginPage(true)}
-          onSuccess={handleSuccess}
-        />
-      )}
-      {showLoginPage && <LoginPage baseUrl={baseUrl} topic={topic} onBack={() => setShowLoginPage(false)} onSuccess={handleSuccess} />}
+    <Dialog open={props.open} onOpenChange={(open) => !open && props.onCancel()}>
+      <DialogContent
+        title={showLoginPage ? t("subscribe_dialog_login_title") : t("subscribe_dialog_subscribe_title")}
+        description={showLoginPage ? t("subscribe_dialog_login_description") : t("subscribe_dialog_subscribe_description")}
+      >
+        {showLoginPage ? (
+          <LoginPage topic={topic} onBack={() => setShowLoginPage(false)} onSuccess={handleSuccess} />
+        ) : (
+          <SubscribePage
+            topic={topic}
+            setTopic={setTopic}
+            subscriptions={props.subscriptions}
+            onCancel={props.onCancel}
+            onNeedsLogin={() => setShowLoginPage(true)}
+            onSuccess={handleSuccess}
+          />
+        )}
+      </DialogContent>
     </Dialog>
   );
 };
@@ -87,42 +76,35 @@ const SubscribePage = (props) => {
   const { account } = useContext(AccountContext);
   const [error, setError] = useState("");
   const [reserveTopicVisible, setReserveTopicVisible] = useState(false);
-  const [anotherServerVisible, setAnotherServerVisible] = useState(false);
   const [everyone, setEveryone] = useState(Permission.DENY_ALL);
-  const baseUrl = anotherServerVisible ? props.baseUrl : config.base_url;
+  const baseUrl = config.base_url;
   const { topic } = props;
   const existingTopicUrls = props.subscriptions.map((s) => topicUrl(s.baseUrl, s.topic));
-  const existingBaseUrls = Array.from(new Set([publicBaseUrl, ...props.subscriptions.map((s) => s.baseUrl)])).filter(
-    (s) => s !== config.base_url,
-  );
-  const showReserveTopicCheckbox = config.enable_reservations && !anotherServerVisible && (config.enable_payments || account);
+  const showReserveTopicCheckbox = config.enable_reservations && !!account;
   const reserveTopicEnabled =
     session.exists() && (account?.role === Role.ADMIN || (account?.role === Role.USER && (account?.stats.reservations_remaining || 0) > 0));
+  const subscribeButtonEnabled = validTopic(topic) && !existingTopicUrls.includes(topicUrl(baseUrl, topic));
 
-  const webPushEnabled = useLiveQuery(() => prefs.webPushEnabled());
-
-  const handleSubscribe = async () => {
+  const handleSubscribe = async (ev) => {
+    ev.preventDefault();
+    if (!subscribeButtonEnabled) {
+      return;
+    }
     const user = await userManager.get(baseUrl); // May be undefined
     const username = user ? user.username : t("subscribe_dialog_error_user_anonymous");
 
-    // Check read access to topic
     const success = await api.topicAuth(baseUrl, topic, user);
     if (!success) {
       console.log(`[SubscribeDialog] Login to ${topicUrl(baseUrl, topic)} failed for user ${username}`);
       if (user) {
-        setError(
-          t("subscribe_dialog_error_user_not_authorized", {
-            username,
-          }),
-        );
+        setError(t("subscribe_dialog_error_user_not_authorized", { username }));
         return;
       }
       props.onNeedsLogin();
       return;
     }
 
-    // Reserve topic (if requested)
-    if (session.exists() && baseUrl === config.base_url && reserveTopicVisible) {
+    if (session.exists() && reserveTopicVisible) {
       console.log(`[SubscribeDialog] Reserving topic ${topic} with everyone access ${everyone}`);
       try {
         await accountApi.upsertReservation(topic, everyone);
@@ -141,135 +123,54 @@ const SubscribePage = (props) => {
     props.onSuccess();
   };
 
-  const handleUseAnotherChanged = (e) => {
-    props.setBaseUrl("");
-    setAnotherServerVisible(e.target.checked);
-  };
-
-  const subscribeButtonEnabled = (() => {
-    if (anotherServerVisible) {
-      const isExistingTopicUrl = existingTopicUrls.includes(topicUrl(baseUrl, topic));
-      return validTopic(topic) && validUrl(baseUrl) && !isExistingTopicUrl;
-    }
-    const isExistingTopicUrl = existingTopicUrls.includes(topicUrl(config.base_url, topic));
-    return validTopic(topic) && !isExistingTopicUrl;
-  })();
-
-  const updateBaseUrl = (ev, newVal) => {
-    if (validUrl(newVal)) {
-      props.setBaseUrl(newVal.replace(/\/$/, "")); // strip trailing slash after https?://
-    } else {
-      props.setBaseUrl(newVal);
-    }
-  };
-
   return (
-    <>
-      <DialogTitle>{t("subscribe_dialog_subscribe_title")}</DialogTitle>
-      <DialogContent>
-        <DialogContentText>{t("subscribe_dialog_subscribe_description")}</DialogContentText>
-        <div style={{ display: "flex", paddingBottom: "8px" }} role="row">
-          <TextField
+    <form onSubmit={handleSubscribe} className="flex flex-col gap-4">
+      <div className="flex gap-2">
+        <div className="flex h-10 min-w-0 flex-1 items-center overflow-hidden rounded-xl border border-border-strong bg-surface-2 transition-colors focus-within:border-accent focus-within:ring-3 focus-within:ring-accent-soft">
+          <span className="max-w-[45%] shrink-0 truncate pl-3 text-sm text-muted">{shortUrl(baseUrl)}/</span>
+          <input
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
-            margin="dense"
-            id="topic"
+            maxLength={64}
+            aria-label={t("subscribe_dialog_subscribe_topic_placeholder")}
             placeholder={t("subscribe_dialog_subscribe_topic_placeholder")}
-            value={props.topic}
+            value={topic}
             onChange={(ev) => props.setTopic(ev.target.value)}
-            type="text"
-            fullWidth
-            variant="standard"
-            slotProps={{
-              htmlInput: {
-                maxLength: 64,
-                "aria-label": t("subscribe_dialog_subscribe_topic_placeholder"),
-              },
-            }}
+            className="h-full min-w-0 flex-1 bg-surface pl-1 pr-3 text-sm placeholder:text-muted/70 focus:outline-none"
           />
-          <Button
-            onClick={() => {
-              props.setTopic(randomAlphanumericString(16));
-            }}
-            style={{ flexShrink: "0", marginTop: "0.5em" }}
-          >
-            {t("subscribe_dialog_subscribe_button_generate_topic_name")}
-          </Button>
         </div>
-        {showReserveTopicCheckbox && (
-          <FormGroup>
-            <FormControlLabel
-              variant="standard"
-              control={
-                <Switch
-                  disabled={!reserveTopicEnabled}
-                  checked={reserveTopicVisible}
-                  onChange={(ev) => setReserveTopicVisible(ev.target.checked)}
-                  slotProps={{
-                    input: {
-                      "aria-label": t("reserve_dialog_checkbox_label"),
-                    },
-                  }}
-                />
-              }
-              label={
-                <>
-                  {t("reserve_dialog_checkbox_label")}
-                  <ReserveLimitChip />
-                </>
-              }
+        <Button type="button" variant="secondary" onClick={() => props.setTopic(randomAlphanumericString(16))} className="shrink-0">
+          <Shuffle className="size-4" aria-hidden />
+          <span className="max-sm:sr-only">{t("subscribe_dialog_subscribe_button_generate_topic_name")}</span>
+        </Button>
+      </div>
+
+      {showReserveTopicCheckbox && (
+        <div className="flex flex-col gap-3">
+          <label htmlFor="subscribe-reserve" className="flex items-center gap-3 text-sm">
+            <Switch
+              id="subscribe-reserve"
+              disabled={!reserveTopicEnabled}
+              checked={reserveTopicVisible}
+              onCheckedChange={setReserveTopicVisible}
             />
-            {reserveTopicVisible && <ReserveTopicSelect value={everyone} onChange={setEveryone} />}
-          </FormGroup>
-        )}
-        {!reserveTopicVisible && (
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Switch
-                  onChange={handleUseAnotherChanged}
-                  checked={anotherServerVisible}
-                  slotProps={{
-                    input: {
-                      "aria-label": t("subscribe_dialog_subscribe_use_another_label"),
-                    },
-                  }}
-                />
-              }
-              label={t("subscribe_dialog_subscribe_use_another_label")}
-            />
-            {anotherServerVisible && (
-              <Autocomplete
-                freeSolo
-                options={existingBaseUrls}
-                inputValue={props.baseUrl}
-                onInputChange={updateBaseUrl}
-                renderInput={(params) => (
-                  <>
-                    <TextField
-                      {...params}
-                      placeholder={config.base_url}
-                      variant="standard"
-                      aria-label={t("subscribe_dialog_subscribe_base_url_label")}
-                    />
-                    {webPushEnabled && (
-                      <div style={{ width: "100%", color: "#aaa", fontSize: "0.75rem", marginTop: "0.5rem" }}>
-                        {t("subscribe_dialog_subscribe_use_another_background_info")}
-                      </div>
-                    )}
-                  </>
-                )}
-              />
-            )}
-          </FormGroup>
-        )}
-      </DialogContent>
-      <DialogFooter status={error}>
-        <Button onClick={props.onCancel}>{t("subscribe_dialog_subscribe_button_cancel")}</Button>
-        <Button onClick={handleSubscribe} disabled={!subscribeButtonEnabled}>
+            <span className={reserveTopicEnabled ? undefined : "text-muted"}>{t("reserve_dialog_checkbox_label")}</span>
+            <ReserveLimitChip />
+          </label>
+          {reserveTopicVisible && <ReserveTopicSelect value={everyone} onChange={setEveryone} />}
+        </div>
+      )}
+
+      <DialogError error={error} />
+      <DialogFooter className="mt-2">
+        <Button type="button" variant="ghost" onClick={props.onCancel}>
+          {t("subscribe_dialog_subscribe_button_cancel")}
+        </Button>
+        <Button type="submit" disabled={!subscribeButtonEnabled}>
           {t("subscribe_dialog_subscribe_button_subscribe")}
         </Button>
       </DialogFooter>
-    </>
+    </form>
   );
 };
 
@@ -278,10 +179,11 @@ const LoginPage = (props) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const baseUrl = props.baseUrl ? props.baseUrl : config.base_url;
+  const baseUrl = config.base_url;
   const { topic } = props;
 
-  const handleLogin = async () => {
+  const handleLogin = async (ev) => {
+    ev.preventDefault();
     const user = { baseUrl, username, password };
     const success = await api.topicAuth(baseUrl, topic, user);
     if (!success) {
@@ -295,47 +197,27 @@ const LoginPage = (props) => {
   };
 
   return (
-    <>
-      <DialogTitle>{t("subscribe_dialog_login_title")}</DialogTitle>
-      <DialogContent>
-        <DialogContentText>{t("subscribe_dialog_login_description")}</DialogContentText>
-        <TextField
-          autoFocus
-          margin="dense"
-          id="username"
-          label={t("subscribe_dialog_login_username_label")}
-          value={username}
-          onChange={(ev) => setUsername(ev.target.value)}
-          type="text"
-          fullWidth
-          variant="standard"
-          slotProps={{
-            htmlInput: {
-              "aria-label": t("subscribe_dialog_login_username_label"),
-            },
-          }}
-        />
-        <TextField
-          margin="dense"
-          id="password"
-          label={t("subscribe_dialog_login_password_label")}
+    <form onSubmit={handleLogin} className="flex flex-col gap-4">
+      <Field label={t("subscribe_dialog_login_username_label")} htmlFor="subscribe-username">
+        <Input id="subscribe-username" autoComplete="username" autoFocus value={username} onChange={(ev) => setUsername(ev.target.value)} />
+      </Field>
+      <Field label={t("subscribe_dialog_login_password_label")} htmlFor="subscribe-password">
+        <Input
+          id="subscribe-password"
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(ev) => setPassword(ev.target.value)}
-          fullWidth
-          variant="standard"
-          slotProps={{
-            htmlInput: {
-              "aria-label": t("subscribe_dialog_login_password_label"),
-            },
-          }}
         />
-      </DialogContent>
-      <DialogFooter status={error}>
-        <Button onClick={props.onBack}>{t("common_back")}</Button>
-        <Button onClick={handleLogin}>{t("subscribe_dialog_login_button_login")}</Button>
+      </Field>
+      <DialogError error={error} />
+      <DialogFooter className="mt-2">
+        <Button type="button" variant="ghost" onClick={props.onBack}>
+          {t("common_back")}
+        </Button>
+        <Button type="submit">{t("subscribe_dialog_login_button_login")}</Button>
       </DialogFooter>
-    </>
+    </form>
   );
 };
 

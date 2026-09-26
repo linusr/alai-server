@@ -29,7 +29,10 @@ export const DialogContent = ({ title, description, className, children, hideClo
           )}
         </div>
         {!hideClose && (
-          <RadixDialog.Close className="-mr-2 -mt-1 rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-text" aria-label="Close">
+          <RadixDialog.Close
+            className="-mr-2 -mt-1 rounded-lg p-2 text-muted outline-none hover:bg-surface-2 hover:text-text focus-visible:ring-2 focus-visible:ring-accent-soft"
+            aria-label="Close"
+          >
             <X className="size-5" />
           </RadixDialog.Close>
         )}
