@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"net/netip"
 	"reflect"
-	"text/template"
 	"time"
 
 	"heckel.io/ntfy/v2/ban"
@@ -16,19 +15,15 @@ import (
 
 // Defines default config settings (excluding limits, see below)
 const (
-	DefaultListenHTTP                           = ":80"
-	DefaultCacheDuration                        = 12 * time.Hour
-	DefaultCacheBatchTimeout                    = time.Duration(0)
-	DefaultKeepaliveInterval                    = 45 * time.Second // Not too frequently to save battery (Android read timeout used to be 77s!)
-	DefaultManagerInterval                      = time.Minute
-	DefaultManagerBatchSize                     = 30000
-	DefaultDelayedSenderInterval                = 10 * time.Second
-	DefaultMessageDelayMin                      = 10 * time.Second
-	DefaultMessageDelayMax                      = 3 * 24 * time.Hour
-	DefaultFirebaseKeepaliveInterval            = 3 * time.Hour    // ~control topic (Android), not too frequently to save battery
-	DefaultFirebasePollInterval                 = 20 * time.Minute // ~poll topic (iOS), max. 2-3 times per hour (see docs)
-	DefaultFirebaseQuotaExceededPenaltyDuration = 10 * time.Minute // Time that over-users are locked out of Firebase if it returns "quota exceeded"
-	DefaultStripePriceCacheDuration             = 3 * time.Hour    // Time to keep Stripe prices cached in memory before a refresh is needed
+	DefaultListenHTTP            = ":80"
+	DefaultCacheDuration         = 12 * time.Hour
+	DefaultCacheBatchTimeout     = time.Duration(0)
+	DefaultKeepaliveInterval     = 45 * time.Second // Not too frequently to save battery (Android read timeout used to be 77s!)
+	DefaultManagerInterval       = time.Minute
+	DefaultManagerBatchSize      = 30000
+	DefaultDelayedSenderInterval = 10 * time.Second
+	DefaultMessageDelayMin       = 10 * time.Second
+	DefaultMessageDelayMax       = 3 * 24 * time.Hour
 )
 
 // Platform-specific default paths (set in config_unix.go or config_windows.go)
@@ -74,7 +69,7 @@ func banWeight(err *errHTTP, weight int) string {
 // - total topic limit: max number of topics overall
 // - various attachment limits
 const (
-	DefaultMessageSizeLimit            = 4096 // Bytes; note that FCM/APNS have a limit of ~4 KB for the entire message
+	DefaultMessageSizeLimit            = 4096 // Bytes; note that APNs has a limit of ~4 KB for the entire message
 	DefaultTotalTopicLimit             = 15000
 	DefaultAttachmentTotalSizeLimit    = int64(5 * 1024 * 1024 * 1024) // 5 GB
 	DefaultAttachmentFileSizeLimit     = int64(15 * 1024 * 1024)       // 15 MB
@@ -139,7 +134,6 @@ type Config struct {
 	CertFile                             string
 	DatabaseURL                          string   // PostgreSQL connection string (e.g. "postgres://user:pass@host:5432/ntfy")
 	DatabaseReplicaURLs                  []string // PostgreSQL read replica connection strings
-	FirebaseKeyFile                      string
 	CacheFile                            string
 	CacheDuration                        time.Duration
 	CacheStartupQueries                  string
@@ -167,11 +161,6 @@ type Config struct {
 	DisallowedTopics                     []string
 	WebRoot                              string // empty to disable
 	DelayedSenderInterval                time.Duration
-	FirebaseKeepaliveInterval            time.Duration
-	FirebasePollInterval                 time.Duration
-	FirebaseQuotaExceededPenaltyDuration time.Duration
-	UpstreamBaseURL                      string
-	UpstreamAccessToken                  string `hash:"-"`
 	SMTPSenderAddr                       string
 	SMTPSenderUser                       string
 	SMTPSenderPass                       string `hash:"-"`
@@ -180,13 +169,6 @@ type Config struct {
 	SMTPServerListen                     string
 	SMTPServerDomain                     string
 	SMTPServerAddrPrefix                 string
-	TwilioAccount                        string
-	TwilioAuthToken                      string `hash:"-"`
-	TwilioPhoneNumber                    string
-	TwilioCallsBaseURL                   string
-	TwilioVerifyBaseURL                  string
-	TwilioVerifyService                  string
-	TwilioCallFormat                     *template.Template
 	MetricsListenHTTP                    string
 	ProfileListenHTTP                    string
 	MessageDelayMin                      time.Duration
@@ -217,11 +199,7 @@ type Config struct {
 	BehindProxy                          bool           // If true, the server will trust the proxy client IP header to determine the client IP address (IPv4 and IPv6 supported)
 	ProxyForwardedHeader                 string         // The header field to read the real/client IP address from, if BehindProxy is true, defaults to "X-Forwarded-For" (IPv4 and IPv6 supported)
 	ProxyTrustedPrefixes                 []netip.Prefix // List of trusted proxy networks (IPv4 or IPv6) that will be stripped from the Forwarded header if BehindProxy is true
-	StripeSecretKey                      string         `hash:"-"`
-	StripeWebhookKey                     string         `hash:"-"`
-	StripePriceCacheDuration             time.Duration
-	BillingContact                       string
-	EnableSignup                         bool // Enable creation of accounts via API and UI
+	EnableSignup                         bool           // Enable creation of accounts via API and UI
 	EnableLogin                          bool
 	RequireLogin                         bool
 	EnableReservations                   bool // Allow users with role "user" to own/reserve topics
@@ -263,7 +241,6 @@ func NewConfig() *Config {
 		KeyFile:                              "",
 		CertFile:                             "",
 		DatabaseURL:                          "",
-		FirebaseKeyFile:                      "",
 		CacheFile:                            "",
 		CacheDuration:                        DefaultCacheDuration,
 		CacheStartupQueries:                  "",
@@ -288,11 +265,6 @@ func NewConfig() *Config {
 		DisallowedTopics:                     DefaultDisallowedTopics,
 		WebRoot:                              "/",
 		DelayedSenderInterval:                DefaultDelayedSenderInterval,
-		FirebaseKeepaliveInterval:            DefaultFirebaseKeepaliveInterval,
-		FirebasePollInterval:                 DefaultFirebasePollInterval,
-		FirebaseQuotaExceededPenaltyDuration: DefaultFirebaseQuotaExceededPenaltyDuration,
-		UpstreamBaseURL:                      "",
-		UpstreamAccessToken:                  "",
 		SMTPSenderAddr:                       "",
 		SMTPSenderUser:                       "",
 		SMTPSenderPass:                       "",
@@ -301,13 +273,6 @@ func NewConfig() *Config {
 		SMTPServerListen:                     "",
 		SMTPServerDomain:                     "",
 		SMTPServerAddrPrefix:                 "",
-		TwilioCallsBaseURL:                   "https://api.twilio.com", // Override for tests
-		TwilioAccount:                        "",
-		TwilioAuthToken:                      "",
-		TwilioPhoneNumber:                    "",
-		TwilioVerifyBaseURL:                  "https://verify.twilio.com", // Override for tests
-		TwilioVerifyService:                  "",
-		TwilioCallFormat:                     nil,
 		MessageSizeLimit:                     DefaultMessageSizeLimit,
 		MessagePollSizeLimit:                 DefaultMessagePollSizeLimit,
 		MessageDelayMin:                      DefaultMessageDelayMin,
@@ -335,10 +300,6 @@ func NewConfig() *Config {
 		VisitorPrefixBitsIPv6:                DefaultVisitorPrefixBitsIPv6, // Default: use /64 for IPv6
 		BehindProxy:                          false,                        // If true, the server will trust the proxy client IP header to determine the client IP address
 		ProxyForwardedHeader:                 "X-Forwarded-For",            // Default header for reverse proxy client IPs
-		StripeSecretKey:                      "",
-		StripeWebhookKey:                     "",
-		StripePriceCacheDuration:             DefaultStripePriceCacheDuration,
-		BillingContact:                       "",
 		EnableSignup:                         false,
 		EnableLogin:                          false,
 		EnableReservations:                   false,
@@ -376,7 +337,7 @@ func (c *Config) Hash() string {
 		if t.Field(i).Tag.Get("hash") == "-" {
 			continue
 		}
-		// Try to marshal the field and skip if it fails (e.g. *template.Template, netip.Prefix)
+		// Try to marshal the field and skip if it fails
 		if b, err := json.Marshal(field.Interface()); err == nil {
 			result += fmt.Sprintf("%s:%s|", fieldName, string(b))
 		}

@@ -372,3 +372,15 @@ func truncateUTF8(s string, limit int) string {
 	}
 	return s[:cut] + "…"
 }
+
+// toPollRequest strips a message down to a poll request that carries only its ID, so the client
+// fetches the full message from the server.
+func toPollRequest(m *model.Message) *model.Message {
+	pr := model.NewPollRequestMessage(m.Topic, m.ID)
+	pr.ID = m.ID
+	pr.Time = m.Time
+	pr.Priority = m.Priority
+	pr.ContentType = m.ContentType
+	pr.Encoding = m.Encoding
+	return pr
+}

@@ -14,6 +14,8 @@ The HTTP API, message format and `ntfy` CLI stay compatible with ntfy, so ntfy c
 | iOS delivery from a self-hosted server | Poll request relayed through ntfy.sh and Firebase | Direct to APNs with your own auth key |
 | Message content in push | `New message`; the app fetches the content | Full message, or IDs only with `apns-payload: minimal` |
 | iOS app | Official ntfy app | [Alai](https://github.com/linusr/ntfy-ios), built and signed by your Apple Developer team |
+| Android push | Firebase Cloud Messaging (FCM) for ntfy.sh-connected apps | Not supported; the ntfy Android app uses its own connection |
+| Hosted-service features | Stripe payments, Twilio phone calls | Not included; tiers remain as a limits mechanism |
 | Web app | ntfy design | Redesigned, branded Alai |
 
 APNs delivery requires an [Apple Developer Program](https://developer.apple.com/programs/) membership, since pushes
@@ -26,8 +28,14 @@ selectively rather than merged; [UPSTREAM.md](UPSTREAM.md) holds the policy and 
 
 ## Compatibility
 
-- APNs support is opt-in: without `apns-key-file`, the server behaves as ntfy.
-- The ntfy Android app, the web app, the CLI and the official ntfy iOS app (via `upstream-base-url`) work unchanged.
+- APNs support is opt-in: without `apns-key-file`, the server behaves as ntfy for the web app, the CLI and the ntfy
+  Android app, which receives messages through its own connection to the server.
+- The official ntfy iOS app is not supported: it depends on the ntfy.sh poll-request relay (`upstream-base-url`),
+  which this server does not implement.
+- FCM delivery to the ntfy Android app, Stripe payments and Twilio phone calls are not implemented. The options
+  `firebase-key-file`, `upstream-base-url`, `upstream-access-token`, `stripe-secret-key`, `stripe-webhook-key`,
+  `billing-contact` and `twilio-*` are ignored with a warning at startup. Publishing with `X-Call` returns HTTP 400;
+  the `X-Firebase` header is accepted and ignored.
 - [Alai](https://github.com/linusr/ntfy-ios) also works with stock ntfy servers, without instant push, since they
   have no `/v1/apns` endpoint.
 
@@ -84,11 +92,14 @@ The app's bundle ID (e.g. `me.4vr.alai`) must exist under your team with the Pus
 ### 2. Create an APNs auth key
 
 1. Open *Certificates, Identifiers & Profiles → Keys* and click **+**.
-2. Name the key, enable **Apple Push Notifications service (APNs)** and register it.
-3. Download `AuthKey_<KEYID>.p8`. Apple offers the download only once.
-4. Note the **Key ID** (shown next to the key) and your **Team ID** (top right of the portal, or *Membership details*).
+2. Name the key, enable **Apple Push Notifications service (APNs)** and click **Configure**.
+3. Choose the environment: **Sandbox**, **Production**, or **Sandbox & Production**, then register the key.
+4. Download `AuthKey_<KEYID>.p8`. Apple offers the download only once.
+5. Note the **Key ID** (shown next to the key) and your **Team ID** (top right of the portal, or *Membership details*).
 
-One key serves every app of the team, in both the sandbox and production environments, and does not expire.
+The key must cover the environment of the app build: Xcode debug builds use the sandbox, TestFlight and App Store
+builds use production. A **Sandbox & Production** key serves both. A key serves every app of the team and does not
+expire.
 
 ### 3. Configure the server
 
@@ -122,6 +133,7 @@ configuration before reopening the app.
 | Reason | Cause |
 |---|---|
 | `InvalidProviderToken` | Key ID or Team ID does not match the key file |
+| `BadEnvironmentKeyInToken` | The key does not cover the environment of the device token; create a key for **Sandbox & Production** |
 | `DeviceTokenNotForTopic` | `apns-bundle-id` differs from the installed app's bundle ID |
 | `BadDeviceToken` | Token from the other environment: Xcode debug builds use the sandbox, TestFlight and App Store builds use production. The app sends its environment when registering, so this indicates a mismatched build configuration |
 | `TopicDisallowed` | The bundle ID lacks the Push Notifications capability |
@@ -161,7 +173,6 @@ Third-party libraries and resources:
 * [go-smtp](https://github.com/emersion/go-smtp) (MIT) is used to receive e-mails
 * [stretchr/testify](https://github.com/stretchr/testify) (MIT) is used for unit and integration tests
 * [github.com/mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) (MIT) is used to provide the persistent message cache
-* [Firebase Admin SDK](https://github.com/firebase/firebase-admin-go) (Apache 2.0) is used to send FCM messages
 * [github/gemoji](https://github.com/github/gemoji) (MIT) is used for emoji support (specifically the [emoji.json](https://raw.githubusercontent.com/github/gemoji/master/db/emoji.json) file)
 * Go's [text/template](https://pkg.go.dev/text/template) (BSD-3-Clause) is vendored under [template/gotext/](template/gotext/) with a small patch adding an execution deadline (see [template/gotext/README.md](template/gotext/README.md))
 * [Lightbox with vanilla JS](https://yossiabramov.com/blog/vanilla-js-lightbox) as a lightbox on the landing page 

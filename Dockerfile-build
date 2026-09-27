@@ -41,10 +41,8 @@ ADD ./server ./server
 ADD ./apns ./apns
 ADD ./ban ./ban
 ADD ./metrics ./metrics
-ADD ./twilio ./twilio
 ADD ./user ./user
 ADD ./util ./util
-ADD ./payments ./payments
 ADD ./db ./db
 ADD ./message ./message
 ADD ./model ./model

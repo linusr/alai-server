@@ -20,11 +20,8 @@ const (
 	tagHTTP      = "http"
 	tagPublish   = "publish"
 	tagSubscribe = "subscribe"
-	tagFirebase  = "firebase"
 	tagSMTP      = "smtp"  // Receive email
 	tagEmail     = "email" // Send email
-	tagTwilio    = "twilio"
-	tagStripe    = "stripe"
 	tagAccount   = "account"
 	tagManager   = "manager"
 	tagResetter  = "resetter"
@@ -35,8 +32,7 @@ const (
 )
 
 var (
-	normalErrorCodes       = []int{http.StatusNotFound, http.StatusBadRequest, http.StatusTooManyRequests, http.StatusUnauthorized, http.StatusForbidden, http.StatusInsufficientStorage, http.StatusRequestEntityTooLarge}
-	rateLimitingErrorCodes = []int{http.StatusTooManyRequests, http.StatusRequestEntityTooLarge}
+	normalErrorCodes = []int{http.StatusNotFound, http.StatusBadRequest, http.StatusTooManyRequests, http.StatusUnauthorized, http.StatusForbidden, http.StatusInsufficientStorage, http.StatusRequestEntityTooLarge}
 )
 
 // logr creates a new log event with HTTP request fields

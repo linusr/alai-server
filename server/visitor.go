@@ -26,10 +26,6 @@ const (
 	// visitorDefaultReservationsLimit is the amount of topic names a user without a tier is allowed to reserve.
 	// This number is zero, and changing it may have unintended consequences in the web app, or otherwise
 	visitorDefaultReservationsLimit = int64(0)
-
-	// visitorDefaultCallsLimit is the amount of calls a user without a tier is allowed to make.
-	// This number is zero, because phone numbers have to be verified first.
-	visitorDefaultCallsLimit = int64(0)
 )
 
 // Constants used to convert a tier-user's MessageSizeLimit (see user.Tier) into adequate request limiter
@@ -62,13 +58,11 @@ type visitor struct {
 	requestLimiter       *rate.Limiter      // Rate limiter for (almost) all requests (including messages)
 	messagesLimiter      *util.FixedLimiter // Rate limiter for messages
 	emailsLimiter        *util.RateLimiter  // Rate limiter for emails
-	callsLimiter         *util.FixedLimiter // Rate limiter for calls
 	subscriptionLimiter  *util.FixedLimiter // Fixed limiter for active subscriptions (ongoing connections)
 	topicCreationLimiter *rate.Limiter      // Rate limiter for inserting new topics into the in-memory topic map
 	bandwidthLimiter     *util.RateLimiter  // Limiter for attachment downloads and cached-message replay (polls)
 	accountLimiter       *rate.Limiter      // Rate limiter for account actions (signup, password-reset requests), may be nil
 	authLimiter          *rate.Limiter      // Limiter for incorrect login attempts, may be nil
-	firebase             time.Time          // Next allowed Firebase message
 	seen                 time.Time          // Last seen time of this visitor (needed for removal of stale visitors)
 	mu                   sync.RWMutex
 }
@@ -87,7 +81,6 @@ type visitorLimits struct {
 	EmailLimit               int64
 	EmailLimitBurst          int
 	EmailLimitReplenish      rate.Limit
-	CallLimit                int64
 	ReservationsLimit        int64
 	AttachmentTotalSizeLimit int64
 	AttachmentFileSizeLimit  int64
@@ -100,8 +93,6 @@ type visitorStats struct {
 	MessagesRemaining            int64
 	Emails                       int64
 	EmailsRemaining              int64
-	Calls                        int64
-	CallsRemaining               int64
 	Reservations                 int64
 	ReservationsRemaining        int64
 	AttachmentTotalSize          int64
@@ -118,11 +109,10 @@ const (
 )
 
 func newVisitor(conf *Config, messageCache *message.Cache, userManager *user.Manager, ip netip.Addr, user *user.User) *visitor {
-	var messages, emails, calls int64
+	var messages, emails int64
 	if user != nil {
 		messages = user.Stats.Messages
 		emails = user.Stats.Emails
-		calls = user.Stats.Calls
 	}
 	v := &visitor{
 		config:               conf,
@@ -130,19 +120,17 @@ func newVisitor(conf *Config, messageCache *message.Cache, userManager *user.Man
 		userManager:          userManager, // May be nil
 		ip:                   ip,
 		user:                 user,
-		firebase:             time.Unix(0, 0),
 		seen:                 time.Now(),
 		subscriptionLimiter:  util.NewFixedLimiter(int64(conf.VisitorSubscriptionLimit)),
 		requestLimiter:       nil, // Set in resetLimiters
 		messagesLimiter:      nil, // Set in resetLimiters, may be nil
 		emailsLimiter:        nil, // Set in resetLimiters
-		callsLimiter:         nil, // Set in resetLimiters, may be nil
 		topicCreationLimiter: nil, // Set in resetLimiters
 		bandwidthLimiter:     nil, // Set in resetLimiters
 		accountLimiter:       nil, // Set in resetLimiters, may be nil
 		authLimiter:          nil, // Set in resetLimiters, may be nil
 	}
-	v.resetLimitersNoLock(messages, emails, calls, false)
+	v.resetLimitersNoLock(messages, emails, false)
 	return v
 }
 
@@ -168,11 +156,6 @@ func (v *visitor) contextNoLock() log.Context {
 		fields["visitor_emails_limit"] = info.Limits.EmailLimit
 		fields["visitor_emails_remaining"] = info.Stats.EmailsRemaining
 	}
-	if v.config.TwilioAccount != "" {
-		fields["visitor_calls"] = info.Stats.Calls
-		fields["visitor_calls_limit"] = info.Limits.CallLimit
-		fields["visitor_calls_remaining"] = info.Stats.CallsRemaining
-	}
 	if v.authLimiter != nil {
 		fields["visitor_auth_attempts_remaining"] = int64(math.Floor(v.authLimiter.Tokens()))
 	}
@@ -186,12 +169,6 @@ func (v *visitor) contextNoLock() log.Context {
 			for field, value := range v.user.Tier.Context() {
 				fields[field] = value
 			}
-		}
-		if v.user.Billing.StripeCustomerID != "" {
-			fields["stripe_customer_id"] = v.user.Billing.StripeCustomerID
-		}
-		if v.user.Billing.StripeSubscriptionID != "" {
-			fields["stripe_subscription_id"] = v.user.Billing.StripeSubscriptionID
 		}
 	}
 	return fields
@@ -214,18 +191,6 @@ func (v *visitor) RequestAllowed() bool {
 	return v.requestLimiter.Allow()
 }
 
-func (v *visitor) FirebaseAllowed() bool {
-	v.mu.RLock()
-	defer v.mu.RUnlock()
-	return !time.Now().Before(v.firebase)
-}
-
-func (v *visitor) FirebaseTemporarilyDeny() {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.firebase = time.Now().Add(v.config.FirebaseQuotaExceededPenaltyDuration)
-}
-
 func (v *visitor) MessageAllowed() bool {
 	v.mu.RLock() // limiters could be replaced!
 	defer v.mu.RUnlock()
@@ -236,12 +201,6 @@ func (v *visitor) EmailAllowed() bool {
 	v.mu.RLock() // limiters could be replaced!
 	defer v.mu.RUnlock()
 	return v.emailsLimiter.Allow()
-}
-
-func (v *visitor) CallAllowed() bool {
-	v.mu.RLock() // limiters could be replaced!
-	defer v.mu.RUnlock()
-	return v.callsLimiter.Allow()
 }
 
 func (v *visitor) SubscriptionAllowed() bool {
@@ -337,7 +296,6 @@ func (v *visitor) Stats() *user.Stats {
 	return &user.Stats{
 		Messages: v.messagesLimiter.Value(),
 		Emails:   v.emailsLimiter.Value(),
-		Calls:    v.callsLimiter.Value(),
 	}
 }
 
@@ -346,7 +304,6 @@ func (v *visitor) ResetStats() {
 	defer v.mu.RUnlock()
 	v.emailsLimiter.Reset()
 	v.messagesLimiter.Reset()
-	v.callsLimiter.Reset()
 }
 
 // User returns the visitor user, or nil if there is none
@@ -377,11 +334,11 @@ func (v *visitor) SetUser(u *user.User) {
 	shouldResetLimiters := v.user.TierID() != u.TierID() // TierID works with nil receiver
 	v.user = u                                           // u may be nil!
 	if shouldResetLimiters {
-		var messages, emails, calls int64
+		var messages, emails int64
 		if u != nil {
-			messages, emails, calls = u.Stats.Messages, u.Stats.Emails, u.Stats.Calls
+			messages, emails = u.Stats.Messages, u.Stats.Emails
 		}
-		v.resetLimitersNoLock(messages, emails, calls, true)
+		v.resetLimitersNoLock(messages, emails, true)
 	}
 }
 
@@ -396,12 +353,11 @@ func (v *visitor) MaybeUserID() string {
 	return ""
 }
 
-func (v *visitor) resetLimitersNoLock(messages, emails, calls int64, enqueueUpdate bool) {
+func (v *visitor) resetLimitersNoLock(messages, emails int64, enqueueUpdate bool) {
 	limits := v.limitsNoLock()
 	v.requestLimiter = rate.NewLimiter(limits.RequestLimitReplenish, limits.RequestLimitBurst)
 	v.messagesLimiter = util.NewFixedLimiterWithValue(limits.MessageLimit, messages)
 	v.emailsLimiter = util.NewRateLimiterWithValue(limits.EmailLimitReplenish, limits.EmailLimitBurst, emails)
-	v.callsLimiter = util.NewFixedLimiterWithValue(limits.CallLimit, calls)
 	if v.config.VisitorTopicCreationLimitBurst > 0 && v.config.VisitorTopicCreationLimitReplenish > 0 {
 		v.topicCreationLimiter = rate.NewLimiter(rate.Every(v.config.VisitorTopicCreationLimitReplenish), v.config.VisitorTopicCreationLimitBurst)
 	} else {
@@ -419,7 +375,6 @@ func (v *visitor) resetLimitersNoLock(messages, emails, calls int64, enqueueUpda
 		go v.userManager.EnqueueUserStats(v.user.ID, &user.Stats{
 			Messages: messages,
 			Emails:   emails,
-			Calls:    calls,
 		})
 	}
 	log.Fields(v.contextNoLock()).Debug("Rate limiters reset for visitor") // Must be after function, because contextNoLock() describes rate limiters
@@ -448,7 +403,6 @@ func tierBasedVisitorLimits(conf *Config, tier *user.Tier) *visitorLimits {
 		EmailLimit:               tier.EmailLimit,
 		EmailLimitBurst:          util.MinMax(int(float64(tier.EmailLimit)*visitorEmailLimitBurstRate), conf.VisitorEmailLimitBurst, visitorEmailLimitBurstMax),
 		EmailLimitReplenish:      dailyLimitToRate(tier.EmailLimit),
-		CallLimit:                tier.CallLimit,
 		ReservationsLimit:        tier.ReservationLimit,
 		AttachmentTotalSizeLimit: tier.AttachmentTotalSizeLimit,
 		AttachmentFileSizeLimit:  tier.AttachmentFileSizeLimit,
@@ -475,7 +429,6 @@ func configBasedVisitorLimits(conf *Config) *visitorLimits {
 		EmailLimit:               emailLimit,
 		EmailLimitBurst:          conf.VisitorEmailLimitBurst,
 		EmailLimitReplenish:      rate.Every(conf.VisitorEmailLimitReplenish),
-		CallLimit:                visitorDefaultCallsLimit,
 		ReservationsLimit:        visitorDefaultReservationsLimit,
 		AttachmentTotalSizeLimit: conf.VisitorAttachmentTotalSizeLimit,
 		AttachmentFileSizeLimit:  conf.AttachmentFileSizeLimit,
@@ -521,15 +474,12 @@ func (v *visitor) Info() (*visitorInfo, error) {
 func (v *visitor) infoLightNoLock() *visitorInfo {
 	messages := v.messagesLimiter.Value()
 	emails := v.emailsLimiter.Value()
-	calls := v.callsLimiter.Value()
 	limits := v.limitsNoLock()
 	stats := &visitorStats{
 		Messages:          messages,
 		MessagesRemaining: zeroIfNegative(limits.MessageLimit - messages),
 		Emails:            emails,
 		EmailsRemaining:   zeroIfNegative(limits.EmailLimit - emails),
-		Calls:             calls,
-		CallsRemaining:    zeroIfNegative(limits.CallLimit - calls),
 	}
 	return &visitorInfo{
 		Limits: limits,

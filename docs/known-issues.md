@@ -12,28 +12,6 @@ clueless on how to fix it, sadly, as it is ephemeral and not clear to me what is
 
 Please send experienced iOS developers my way to help me figure this out.
 
-## iOS app not receiving notifications (anymore)
-If notifications do not show up at all anymore, there are a few causes for it (that I know of):
-
-**Firebase+APNS are being weird and buggy**:    
-If this is the case, usually it helps to **remove the topic/subscription and re-add it**. That will force Firebase to 
-re-subscribe to the Firebase topic.
-
-**Self-hosted only: No `upstream-base-url` set, or `base-url` mismatch**:   
-To make self-hosted servers work with the iOS
-app, I had to do some horrible things (see [iOS instant notifications](config.md#ios-instant-notifications) for details).
-Be sure that in your selfhosted server:
-
-* Set `upstream-base-url: "https://ntfy.sh"` (**not your own hostname!**)
-* Ensure that the URL you set in `base-url` **matches exactly** what you set the Default Server in iOS to 
-
-## iOS app seeing "New message", but not real message content
-If you see `New message` notifications on iOS, your iPhone can likely not talk to your self-hosted server. Be sure that
-your iOS device and your ntfy server are either on the same network, or that your phone can actually reach the server.
-
-Turn on tracing/debugging on the server (via `log-level: trace` or `log-level: debug`, see [troubleshooting](troubleshooting.md)),
-and read docs on [iOS instant notifications](https://docs.ntfy.sh/config/#ios-instant-notifications).
-
 ## Safari does not play sounds for web push notifications
 Safari does not support playing sounds for web push notifications, and treats them all as silent. This will be fixed with
 iOS 17 / Safari 17, which will be released later in 2023.

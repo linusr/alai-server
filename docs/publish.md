@@ -3419,133 +3419,6 @@ title `You've Got Mail` to topic `sometopic` (see [ntfy.sh/sometopic](https://nt
   <figcaption>Publishing a message via e-mail</figcaption>
 </figure>
 
-## Phone calls
-_Supported on:_ :material-android: :material-apple: :material-firefox:
-
-You can use ntfy to call a phone and **read the message out loud using text-to-speech**. 
-Similar to email notifications, this can be useful to blast-notify yourself on all possible channels, or to notify people that do not have 
-the ntfy app installed on their phone.
-
-**Phone numbers have to be previously verified** (via the [web app](https://ntfy.sh/account)), so this feature is 
-**only available to authenticated users** (no anonymous phone calls). To forward a message as a voice call, pass a phone
-number in the `X-Call` header (or its alias: `Call`), prefixed with a plus sign and the country code, e.g. `+12223334444`. 
-You may also simply pass `yes` as a value to pick the first of your verified phone numbers. 
-On ntfy.sh, this feature is only supported to [ntfy Pro](https://ntfy.sh/app) plans.
-
-<figure markdown>
-  ![phone number verification](static/img/web-phone-verify.png)
-  <figcaption>Phone number verification in the <a href="https://ntfy.sh/account">web app</a></figcaption>
-</figure>
-
-As of today, the text-to-speed voice used will only support English. If there is demand for other languages, we'll
-be happy to add support for that. Please [open an issue on GitHub](https://github.com/binwiederhier/ntfy/issues).
-
-!!! info
-    You are responsible for the message content, and **you must abide by the [Twilio Acceptable Use Policy](https://www.twilio.com/en-us/legal/aup)**.
-    This particularly means that you must not use this feature to send unsolicited messages, or messages that are illegal or
-    violate the rights of others. Please read the policy for details. Failure to do so may result in your account being suspended or terminated.
-
-Here's how you use it:
-
-=== "Command line (curl)"
-    ```
-    curl \
-        -u :tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2 \
-        -H "Call: +12223334444" \
-        -d "Your garage seems to be on fire. You should probably check that out." \
-        ntfy.sh/alerts
-    ```
-
-=== "ntfy CLI"
-    ```
-    ntfy publish \
-        --token=tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2 \
-        --call=+12223334444 \
-        alerts "Your garage seems to be on fire. You should probably check that out."
-    ```
-
-=== "HTTP"
-    ``` http
-    POST /alerts HTTP/1.1
-    Host: ntfy.sh
-    Authorization: Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2
-    Call: +12223334444
-
-    Your garage seems to be on fire. You should probably check that out.
-    ```
-
-=== "JavaScript"
-    ``` javascript
-    fetch('https://ntfy.sh/alerts', {
-        method: 'POST',
-        body: "Your garage seems to be on fire. You should probably check that out.",
-        headers: { 
-            'Authorization': 'Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2',
-            'Call': '+12223334444'
-        }
-    })
-    ```
-
-=== "Go"
-    ``` go
-    req, _ := http.NewRequest("POST", "https://ntfy.sh/alerts", 
-        strings.NewReader("Your garage seems to be on fire. You should probably check that out."))
-    req.Header.Set("Call", "+12223334444")
-    req.Header.Set("Authorization", "Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2")
-    http.DefaultClient.Do(req)
-    ```
-
-=== "PowerShell"
-    ``` powershell
-    $Request = @{
-      Method = "POST"
-      URI = "https://ntfy.sh/alerts"
-      Headers = @{
-        Authorization = "Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2"
-        Call = "+12223334444"
-      }
-      Body = "Your garage seems to be on fire. You should probably check that out."
-    }
-    Invoke-RestMethod @Request
-    ```
-
-=== "Python"
-    ``` python
-    requests.post("https://ntfy.sh/alerts",
-        data="Your garage seems to be on fire. You should probably check that out.",
-        headers={ 
-            "Authorization": "Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2",
-            "Call": "+12223334444"
-        })
-    ```
-
-=== "PHP"
-    ``` php-inline
-    file_get_contents('https://ntfy.sh/alerts', false, stream_context_create([
-        'http' => [
-            'method' => 'POST',
-            'header' =>
-                "Content-Type: text/plain\r\n" .
-                "Authorization: Bearer tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2\r\n" .
-                "Call: +12223334444",
-            'content' => 'Your garage seems to be on fire. You should probably check that out.'
-        ]
-    ]));
-    ```
-
-Here's what a phone call from ntfy sounds like:
-
-<audio controls>
-    <source src="../static/audio/ntfy-phone-call.mp3" type="audio/mpeg">
-    <source src="../static/audio/ntfy-phone-call.ogg" type="audio/ogg">
-</audio>
-
-Audio transcript:
-
-> You have a notification from ntfy on topic alerts.
-> Message: Your garage seems to be on fire. You should probably check that out. End message.   
-> This message was sent by user phil. It will be repeated up to three times.
-
 ## Publish as JSON
 _Supported on:_ :material-android: :material-apple: :material-firefox:
 
@@ -3720,7 +3593,6 @@ all the supported fields:
 | `filename`    | -        | *string*                         | `file.jpg`                                | File name of the attachment                                                               |
 | `delay`       | -        | *string*                         | `30min`, `9am`                            | Timestamp or duration for delayed delivery                                                |
 | `email`       | -        | *e-mail address or 'yes'*        | `phil@example.com` or `yes`               | E-mail address for e-mail notifications, or `yes` to use your primary verified address    |
-| `call`        | -        | *phone number or 'yes'*          | `+1222334444` or `yes`                    | Phone number to use for [voice call](#phone-calls)                                        |
 | `sequence_id` | -        | *string*                         | `my-sequence-123`                         | Sequence ID for [updating/deleting notifications](#updating-deleting-notifications)   |
 
 ## Webhooks (publish via GET) 
@@ -4795,89 +4667,6 @@ are still delivered to connected subscribers, but [`since=`](subscribe/api.md#fe
     ]));
     ```
 
-### Disable Firebase
-!!! info
-    If `Firebase: no` is used and [instant delivery](subscribe/phone.md#instant-delivery) isn't enabled in the Android 
-    app (Google Play variant only), **message delivery will be significantly delayed (up to 15 minutes)**. To overcome 
-    this delay, simply enable instant delivery.
-
-The ntfy server can be configured to use [Firebase Cloud Messaging (FCM)](https://firebase.google.com/docs/cloud-messaging)
-(see [Firebase config](config.md#firebase-fcm)) for message delivery on Android (to minimize the app's battery footprint). 
-The ntfy.sh server is configured this way, meaning that all messages published to ntfy.sh are also published to corresponding
-FCM topics.
-
-If you'd like to avoid forwarding messages to Firebase, you can set the `X-Firebase` header (or its alias: `Firebase`)
-to `no`. This will instruct the server not to forward messages to Firebase.
-
-=== "Command line (curl)"
-    ```
-    curl -H "X-Firebase: no" -d "This message won't be forwarded to FCM" ntfy.sh/mytopic
-    curl -H "Firebase: no" -d "This message won't be forwarded to FCM" ntfy.sh/mytopic
-    ```
-
-=== "ntfy CLI"
-    ```
-    ntfy publish \
-        --no-firebase \
-        mytopic "This message won't be forwarded to FCM"
-    ```
-
-=== "HTTP"
-    ``` http
-    POST /mytopic HTTP/1.1
-    Host: ntfy.sh
-    Firebase: no
-
-    This message won't be forwarded to FCM
-    ```
-
-=== "JavaScript"
-    ``` javascript
-    fetch('https://ntfy.sh/mytopic', {
-        method: 'POST',
-        body: 'This message won't be forwarded to FCM',
-        headers: { 'Firebase': 'no' }
-    })
-    ```
-
-=== "Go"
-    ``` go
-    req, _ := http.NewRequest("POST", "https://ntfy.sh/mytopic", strings.NewReader("This message won't be forwarded to FCM"))
-    req.Header.Set("Firebase", "no")
-    http.DefaultClient.Do(req)
-    ```
-
-=== "PowerShell"
-    ``` powershell
-    $Request = @{
-      Method = "POST"
-      URI = "https://ntfy.sh/mytopic"
-      Headers = @{ Firebase="no" }
-      Body = "This message won't be forwarded to FCM"
-    }
-    Invoke-RestMethod @Request
-    ```
-
-=== "Python"
-    ``` python
-    requests.post("https://ntfy.sh/mytopic",
-        data="This message won't be forwarded to FCM",
-        headers={ "Firebase": "no" })
-    ```
-
-=== "PHP"
-    ``` php-inline
-    file_get_contents('https://ntfy.sh/mytopic', false, stream_context_create([
-        'http' => [
-            'method' => 'POST',
-            'header' =>
-                "Content-Type: text/plain\r\n" .
-                "Firebase: no",
-            'content' => 'This message won't be stored server-side'
-        ]
-    ]));
-    ```
-
 ### UnifiedPush
 !!! info
     This setting is not relevant to users, only to app developers and people interested in [UnifiedPush](https://unifiedpush.org). 
@@ -4887,8 +4676,7 @@ to `no`. This will instruct the server not to forward messages to Firebase.
 in the control of the user. ntfy can act as a **UnifiedPush distributor**, forwarding messages to apps that support it.
 
 When publishing messages to a topic, apps using ntfy as a UnifiedPush distributor can set the `X-UnifiedPush` header or query
-parameter (or any of its aliases `unifiedpush` or `up`) to `1` to [disable Firebase](#disable-firebase). As of today, this
-option is mostly equivalent to `Firebase: no`, but was introduced to allow future flexibility. The flag additionally 
+parameter (or any of its aliases `unifiedpush` or `up`) to `1`. The flag
 enables auto-detection of the message encoding. If the message is binary, it'll be encoded as base64.
 
 ### Matrix Gateway
@@ -4935,8 +4723,7 @@ but just in case, let's list them all:
 | **Daily bandwidth**        | By default, the server allows 500 MB of traffic per visitor in a 24 hour period, covering attachment GET/PUT/POST traffic and messages replayed from the cache by [poll requests](subscribe/api.md#replay-limits). Traffic exceeding that is rejected. On ntfy.sh, the daily bandwidth limit is 200 MB.  |
 | **Total number of topics** | By default, the server is configured to allow 15,000 topics. The ntfy.sh server has higher limits though.                                                                                                               |
 
-These limits can be changed on a per-user basis using [tiers](config.md#tiers). If [payments](config.md#payments) are enabled, a user tier can be changed by purchasing
-a higher tier. ntfy.sh offers multiple paid tiers, which allows for much hier limits than the ones listed above. 
+These limits can be changed on a per-user basis using [tiers](config.md#tiers).
 
 ## List of all parameters
 The following is a list of all parameters that can be passed when publishing a message. Parameter names are **case-insensitive**
@@ -4964,10 +4751,8 @@ table in their canonical form.
 | `X-Icon`        | `Icon`                                     | URL to use as notification [icon](#icons)                                                     |
 | `X-Filename`    | `Filename`, `file`, `f`                    | Optional [attachment](#attachments) filename, as it appears in the client                     |
 | `X-Email`       | `X-E-Mail`, `Email`, `E-Mail`, `mail`, `e` | E-mail address (or `yes`) for [e-mail notifications](#e-mail-notifications)                   |
-| `X-Call`        | `Call`                                     | Phone number for [phone calls](#phone-calls)                                                  |
 | `X-Cache`       | `Cache`                                    | Allows disabling [message caching](#message-caching)                                          |
-| `X-Firebase`    | `Firebase`                                 | Allows disabling [sending to Firebase](#disable-firebase)                                     |
 | `X-UnifiedPush` | `UnifiedPush`, `up`                        | [UnifiedPush](#unifiedpush) publish option, only to be used by UnifiedPush apps               |
-| `X-Poll-ID`     | `Poll-ID`                                  | Internal parameter, used for [iOS push notifications](config.md#ios-instant-notifications)    |
+| `X-Poll-ID`     | `Poll-ID`                                  | Internal parameter, used for [APNs](config.md#apple-push-notification-service-apns) poll requests|
 | `Authorization` | -                                          | If supported by the server, you can [login to access](#authentication) protected topics       |
 | `Content-Type`  | -                                          | If set to `text/markdown`, [Markdown formatting](#markdown-formatting) is enabled             |

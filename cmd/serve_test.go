@@ -541,3 +541,49 @@ func newEmptyFile(t *testing.T) string {
 	require.Nil(t, os.WriteFile(filename, []byte{}, 0600))
 	return filename
 }
+
+func TestDetectUnsupportedOptions(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "server.yml")
+	require.Nil(t, os.WriteFile(configFile, []byte(`
+base-url: https://ntfy.example.com
+firebase-key-file: /etc/ntfy/firebase.json
+upstream_base_url: https://ntfy.sh
+stripe-secret-key: sk_test_123
+twilio_call_format: "<Response/>"
+apns-key-file: /etc/ntfy/apns.p8
+`), 0600))
+	unsupported, err := detectUnsupportedOptions(configFile, []string{
+		"NTFY_TWILIO_ACCOUNT=AC123",
+		"NTFY_BILLING_CONTACT=",
+		"NTFY_STRIPE_SECRET_KEY=sk_test_456",
+		"NTFY_BASE_URL=https://ntfy.example.com",
+		"HOME=/root",
+	})
+	require.Nil(t, err)
+	require.Equal(t, []string{
+		"firebase-key-file",
+		"upstream-base-url",
+		"stripe-secret-key",
+		"twilio-account",
+		"twilio-call-format",
+	}, unsupported)
+}
+
+func TestDetectUnsupportedOptions_NoneSet(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "server.yml")
+	require.Nil(t, os.WriteFile(configFile, []byte("base-url: https://ntfy.example.com\n"), 0600))
+	unsupported, err := detectUnsupportedOptions(configFile, []string{"NTFY_BASE_URL=https://ntfy.example.com"})
+	require.Nil(t, err)
+	require.Empty(t, unsupported)
+
+	unsupported, err = detectUnsupportedOptions(filepath.Join(t.TempDir(), "missing.yml"), nil)
+	require.Nil(t, err)
+	require.Empty(t, unsupported)
+}
+
+func TestDetectUnsupportedOptions_InvalidYAML(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "server.yml")
+	require.Nil(t, os.WriteFile(configFile, []byte("base-url: [unclosed\n"), 0600))
+	_, err := detectUnsupportedOptions(configFile, nil)
+	require.Error(t, err)
+}

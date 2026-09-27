@@ -72,7 +72,7 @@ func (m *Message) Context() log.Context {
 
 // SanitizeUTF8 replaces invalid UTF-8 sequences and strips NUL bytes from all user-supplied
 // string fields. This is called early in the publish path so that all downstream consumers
-// (Firebase, WebPush, SMTP, cache) receive clean UTF-8 strings.
+// (APNs, WebPush, SMTP, cache) receive clean UTF-8 strings.
 func (m *Message) SanitizeUTF8() {
 	m.Topic = util.SanitizeUTF8(m.Topic)
 	m.Message = util.SanitizeUTF8(m.Message)

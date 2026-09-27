@@ -65,12 +65,11 @@ Here are a few working sample configs using a `/etc/ntfy/server.yml` file:
 
 === "server.yml (ntfy.sh config)"
     ``` yaml
-    # All the things: Behind a proxy, Firebase, cache, attachments, 
+    # All the things: Behind a proxy, cache, attachments,
     # SMTP publishing & receiving
 
     base-url: "https://ntfy.sh"
     listen-http: "127.0.0.1:2586"
-    firebase-key-file: "/etc/ntfy/firebase.json"
     cache-file: "/var/cache/ntfy/cache.db"
     behind-proxy: true
     attachment-cache-dir: "/var/cache/ntfy/attachments"
@@ -123,7 +122,6 @@ using Docker Compose (i.e. `docker-compose.yml`):
 	      NTFY_BEHIND_PROXY: true
 	      NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
 	      NTFY_ENABLE_LOGIN: true
-	      NTFY_UPSTREAM_BASE_URL: https://ntfy.sh
 	      NTFY_WEB_PUSH_PUBLIC_KEY: <public_key>
 	      NTFY_WEB_PUSH_PRIVATE_KEY: <private_key>
 	      NTFY_WEB_PUSH_FILE: /var/lib/ntfy/webpush.db
@@ -195,13 +193,6 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 <label><input type="radio" name="cg-server-type" value="open" checked><span>Open</span></label>
 <label><input type="radio" name="cg-server-type" value="private"><span>Private</span></label>
 <label><input type="radio" name="cg-server-type" value="custom"><span>Custom</span></label>
-</div>
-</div>
-<div class="cg-field cg-inline-field">
-<label>Will iOS/iPhone users use this server? <a href="/config/#ios-instant-notifications" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
-<div class="cg-btn-group">
-<label><input type="radio" name="cg-ios" value="no" checked><span>No</span></label>
-<label><input type="radio" name="cg-ios" value="yes"><span>Yes</span></label>
 </div>
 </div>
 <div class="cg-field cg-inline-field">
@@ -385,7 +376,6 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 <input type="text" data-key="database-url" placeholder="postgres://user:pass@host:5432/ntfy">
 </div>
 </div>
-<input type="hidden" data-key="upstream-base-url">
 <input type="checkbox" data-key="behind-proxy" id="cg-behind-proxy" style="display:none">
 </div>
 </div>
@@ -1568,78 +1558,9 @@ or the root domain:
     }
     ```
 
-## Firebase (FCM)
-!!! info
-    Using Firebase is **optional** and only works if you modify and [build your own Android .apk](develop.md#android-app).
-    For a self-hosted instance, it's easier to just not bother with FCM.
-
-[Firebase Cloud Messaging (FCM)](https://firebase.google.com/docs/cloud-messaging) is the Google approved way to send
-push messages to Android devices. FCM is the only method that an Android app can receive messages without having to run a
-[foreground service](https://developer.android.com/guide/components/foreground-services).
-
-For the main host [ntfy.sh](https://ntfy.sh), the [ntfy Android app](subscribe/phone.md) uses Firebase to send messages
-to the device. For other hosts, instant delivery is used and FCM is not involved.
-
-To configure FCM for your self-hosted instance of the ntfy server, follow these steps:
-
-1. Sign up for a [Firebase account](https://console.firebase.google.com/)
-2. Create a Firebase app and download the key file (e.g. `myapp-firebase-adminsdk-...json`)
-3. Place the key file in `/etc/ntfy`, set the `firebase-key-file` in `server.yml` accordingly and restart the ntfy server
-4. Build your own Android .apk following [these instructions](develop.md#android-app)
-
-Example:
-```
-# If set, also publish messages to a Firebase Cloud Messaging (FCM) topic for your app.
-# This is optional and only required to support Android apps (which don't allow background services anymore).
-#
-firebase-key-file: "/etc/ntfy/ntfy-sh-firebase-adminsdk-ahnce-9f4d6f14b5.json"
-```
-
-## iOS instant notifications
-Unlike Android, iOS heavily restricts background processing, which sadly makes it impossible to implement instant 
-push notifications without a central server. 
-
-To still support instant notifications on iOS through your self-hosted ntfy server, you have to forward so called `poll_request` 
-messages to the main ntfy.sh server (or any upstream server that's APNS/Firebase connected, if you build your own iOS app),
-which will then forward it to Firebase/APNS.
-
-To configure it, simply set `upstream-base-url` like so:
-
-``` yaml
-upstream-base-url: "https://ntfy.sh"
-upstream-access-token: "..." # optional, only if rate limits exceeded, or upstream server protected
-```
-
-If set, all incoming messages will publish a poll request to the configured upstream server, containing
-the message ID of the original message, instructing the iOS app to poll this server for the actual message contents.
-
-If `upstream-base-url` is not set, notifications will still eventually get to your device, but delivery can take hours,
-depending on the state of the phone. If you are using your phone, it shouldn't take more than 20-30 minutes though.
-
-In case you're curious, here's an example of the entire flow: 
-
-- In the iOS app, you subscribe to `https://ntfy.example.com/mytopic`
-- The app subscribes to the Firebase topic `6de73be8dfb7d69e...` (the SHA256 of the topic URL)
-- When you publish a message to `https://ntfy.example.com/mytopic`, your ntfy server will publish a 
-  poll request to `https://ntfy.sh/6de73be8dfb7d69e...`. The request from your server to the upstream server 
-  contains only the message ID (in the `X-Poll-ID` header), and the SHA256 checksum of the topic URL (as upstream topic).
-- The ntfy.sh server publishes the poll request message to Firebase, which forwards it to APNS, which forwards it to your iOS device
-- Your iOS device receives the poll request, and fetches the actual message from your server, and then displays it
-
-Here's an example of what the self-hosted server forwards to the upstream server. The request is equivalent to this curl:
-
-```
-curl -X POST -H "X-Poll-ID: s4PdJozxM8na" https://ntfy.sh/6de73be8dfb7d69e32fb2c00c23fe7adbd8b5504406e3068c273aa24cef4055b
-{"id":"4HsClFEuCIcs","time":1654087955,"event":"poll_request","topic":"6de73be8dfb7d69e32fb2c00c23fe7adbd8b5504406e3068c273aa24cef4055b","message":"New message","poll_id":"s4PdJozxM8na"}
-```
-
-Note that the self-hosted server literally sends the message `New message` for every message, even if your message 
-may be `Some other message`. This is so that if iOS cannot talk to the self-hosted server (in time, or at all), 
-it'll show `New message` as a popup.
-
 ## Apple Push Notification service (APNs)
-ntfy can deliver messages directly to your own build of an iOS app through Apple Push Notification service (APNs),
-without Firebase or an upstream server. This requires an [Apple Developer Program](https://developer.apple.com/programs/)
+ntfy can deliver messages directly to your own build of an iOS app through Apple Push Notification service (APNs).
+This requires an [Apple Developer Program](https://developer.apple.com/programs/)
 membership and an app whose bundle ID belongs to your team; the official ntfy iOS app cannot be targeted this way,
 since APNs only accepts pushes signed by the team that owns the app.
 
@@ -1771,9 +1692,8 @@ if you change them the clients will not be able to subscribe via web push until 
 
 ## Tiers
 ntfy supports associating users to pre-defined tiers. Tiers can be used to grant users higher limits, such as 
-daily message limits, attachment size, or make it possible for users to reserve topics. If [payments are enabled](#payments),
-tiers can be paid or unpaid, and users can upgrade/downgrade between them. If payments are disabled, then the only way
-to switch between tiers is with the `ntfy user change-tier` command (see [users and roles](#users-and-roles)).
+daily message limits, attachment size, or make it possible for users to reserve topics. Users are switched between
+tiers with the `ntfy user change-tier` command (see [users and roles](#users-and-roles)).
 
 By default, **newly created users have no tier**, and all usage limits are read from the `server.yml` config file.
 Once a user is associated with a tier, some limits are overridden based on the tier.
@@ -1795,145 +1715,21 @@ ntfy tier add \
   --message-limit=10000 \
   --message-expiry-duration=24h \
   --email-limit=50 \
-  --call-limit=10 \
   --reservation-limit=10 \
   --attachment-file-size-limit=100M \
   --attachment-total-size-limit=1G \
   --attachment-expiry-duration=12h \
   --attachment-bandwidth-limit=5G \
-  --stripe-price-id=price_123456 \
   pro
 ```
-
-## Payments
-ntfy supports paid [tiers](#tiers) via [Stripe](https://stripe.com/) as a payment provider. If payments are enabled,
-users can register, login and switch plans in the web app. The web app will behave slightly differently if payments 
-are enabled (e.g. showing an upgrade banner, or "ntfy Pro" tags).
-
-!!! info
-    The ntfy payments integration is very tailored to ntfy.sh and Stripe. I do not intend to support arbitrary use
-    cases.
-
-To enable payments, sign up with [Stripe](https://stripe.com/), set the `stripe-secret-key` and `stripe-webhook-key`
-config options: 
-
-* `stripe-secret-key` is the key used for the Stripe API communication. Setting this values
-   enables payments in the ntfy web app (e.g. Upgrade dialog). See [API keys](https://dashboard.stripe.com/apikeys).
-* `stripe-webhook-key` is the key required to validate the authenticity of incoming webhooks from Stripe.
-   Webhooks are essential to keep the local database in sync with the payment provider. See [Webhooks](https://dashboard.stripe.com/webhooks).
-* `billing-contact` is an email address or website displayed in the "Upgrade tier" dialog to let people reach
-   out with billing questions. If unset, nothing will be displayed.
-
-In addition to setting these two options, you also need to define a [Stripe webhook](https://dashboard.stripe.com/webhooks)
-for the `customer.subscription.updated` and `customer.subscription.deleted` event, which points 
-to `https://ntfy.example.com/v1/account/billing/webhook`.
-
-Here's an example:
-
-``` yaml
-stripe-secret-key: "sk_test_ZmhzZGtmbGhkc2tqZmhzYcO2a2hmbGtnaHNkbGtnaGRsc2hnbG"
-stripe-webhook-key: "whsec_ZnNkZnNIRExBSFNES0hBRFNmaHNka2ZsaGR"
-billing-contact: "phil@example.com"
-```
-
-## Phone calls
-ntfy supports phone calls via [Twilio](https://www.twilio.com/) as a call provider. If phone calls are enabled,
-users can verify and add a phone number, and then receive phone calls when publishing a message using the `X-Call` header.
-See [publishing page](publish.md#phone-calls) for more details.
-
-To enable Twilio integration, sign up with [Twilio](https://www.twilio.com/), purchase a phone number (Toll free numbers
-are the easiest), and then configure the following options:
-
-* `twilio-account` is the Twilio account SID, e.g. AC12345beefbeef67890beefbeef122586
-* `twilio-auth-token` is the Twilio auth token, e.g. affebeef258625862586258625862586
-* `twilio-phone-number` is the outgoing phone number you purchased, e.g. +18775132586 
-* `twilio-verify-service` is the Twilio Verify service SID, e.g. VA12345beefbeef67890beefbeef122586
-* `twilio-call-format` is the custom Twilio markup ([TwiML](https://www.twilio.com/docs/voice/twiml)) to use for phone calls (optional)
-
-After you have configured phone calls, create a [tier](#tiers) with a call limit (e.g. `ntfy tier create --call-limit=10 ...`),
-and then assign it to a user. Users may then use the `X-Call` header to receive a phone call when publishing a message.
-
-To customize the message that is spoken out loud, set the `twilio-call-format` option with [TwiML](https://www.twilio.com/docs/voice/twiml). The format is
-rendered as a [Go template](https://pkg.go.dev/text/template), so you can use the following fields from the message:
-
-* `{{.Topic}}` is the topic name
-* `{{.Message}}` is the message body
-* `{{.Title}}` is the message title
-* `{{.Tags}}` is a list of tags
-* `{{.Priority}}` is the message priority
-* `{{.Sender}}` is the IP address or username of the sender
-
-Here's an example:
-
-=== "Custom TwiML (English)"
-    ``` yaml
-    twilio-account: "AC12345beefbeef67890beefbeef122586"
-    twilio-auth-token: "affebeef258625862586258625862586"
-    twilio-phone-number: "+18775132586"
-    twilio-verify-service: "VA12345beefbeef67890beefbeef122586"
-    twilio-call-format: |
-      <Response>
-        <Pause length="1"/>
-        <Say loop="3">
-          Yo yo yo, you should totally check out this message for {{.Topic}}.
-          {{ if eq .Priority 5 }}
-            It's really really important, dude. So listen up!
-          {{ end }}
-          <break time="1s"/>
-          {{ if neq .Title "" }}
-            Bro, it's titled: {{.Title}}.
-          {{ end }}
-          <break time="1s"/>
-          {{.Message}}
-          <break time="1s"/>
-          That is all.
-          <break time="1s"/>
-          You know who this message is from? It is from {{.Sender}}.
-          <break time="3s"/>
-        </Say>
-        <Say>See ya!</Say>
-      </Response>
-    ```
-
-=== "Custom TwiML (German)"
-    ``` yaml
-    twilio-account: "AC12345beefbeef67890beefbeef122586"
-    twilio-auth-token: "affebeef258625862586258625862586"
-    twilio-phone-number: "+18775132586"
-    twilio-verify-service: "VA12345beefbeef67890beefbeef122586"
-    twilio-call-format: |
-      <Response>
-        <Pause length="1"/>
-        <Say loop="3" voice="alice" language="de-DE">
-          Du hast eine Nachricht zum Thema {{.Topic}}.
-          {{ if eq .Priority 5 }}
-            Achtung. Die Nachricht ist sehr wichtig.
-          {{ end }}
-          <break time="1s"/>
-          {{ if neq .Title "" }}
-            Titel der Nachricht: {{.Title}}.
-          {{ end }}
-          <break time="1s"/>
-          Nachricht:
-          <break time="1s"/>
-          {{.Message}}
-          <break time="1s"/>
-          Ende der Nachricht.
-          <break time="1s"/>
-          Diese Nachricht wurde vom Benutzer {{.Sender}} gesendet. Sie wird drei Mal wiederholt.
-          <break time="3s"/>
-        </Say>
-        <Say voice="alice" language="de-DE">Alla mol!</Say>
-      </Response>
-    ```
 
 ## Message limits
 There are a few message limits that you can configure:
 
 * `message-size-limit` defines the max size of a message body. Please note message sizes >4K are **not recommended,
-   and largely untested**. The Android/iOS and other clients may not work, or work properly. If FCM and/or APNS is used,
-   the limit should stay 4K, because their limits are around that size. If you increase this size limit regardless, 
-   FCM and APNS will NOT work for large messages.
+   and largely untested**. The Android/iOS and other clients may not work, or work properly. If APNs is used,
+   the limit should stay 4K, because its limit is around that size. If you increase this size limit regardless,
+   APNs will NOT work for large messages.
 * `message-delay-limit` defines the max delay of a message when using the "Delay" header and [scheduled delivery](publish.md#scheduled-delivery).
 
 ## Rate limiting
@@ -2009,23 +1805,6 @@ a token; only first-time insertions do.
   the limit entirely. Defaults to 100.
 * `visitor-topic-creation-limit-replenish` is the rate at which the bucket is refilled (one new topic per x).
   Defaults to 1m.
-
-### Firebase limits
-If [Firebase is configured](#firebase-fcm), all messages are also published to a Firebase topic (unless `Firebase: no` 
-is set). Firebase enforces [its own limits](https://firebase.google.com/docs/cloud-messaging/concept-options#topics_throttling)
-on how many messages can be published. Unfortunately these limits are a little vague and can change depending on the time 
-of day. In practice, I have only ever observed `429 Quota exceeded` responses from Firebase if **too many messages are published to 
-the same topic**. 
-
-In ntfy, if Firebase responds with a 429 after publishing to a topic, the visitor (= IP address) who published the message
-is **banned from publishing to Firebase for 10 minutes** (not configurable). Because publishing to Firebase happens asynchronously,
-there is no indication of the user that this has happened. Non-Firebase subscribers (WebSocket or HTTP stream) are not affected.
-After the 10 minutes are up, messages forwarding to Firebase is resumed for this visitor.
-
-If this ever happens, there will be a log message that looks something like this:
-```
-WARN Firebase quota exceeded (likely for topic), temporarily denying Firebase access to visitor
-```
 
 ### IPv6 considerations
 By default, rate limiting for IPv6 is done using the `/64` subnet of the visitor's IPv6 address. This means that all visitors
@@ -2421,7 +2200,6 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `listen-unix-mode`                         | `NTFY_LISTEN_UNIX_MODE`                         | *file mode*                                         | *system default*  | File mode of the Unix socket, e.g. 0700 or 0777                                                                                                                                                                                         |
 | `key-file`                                 | `NTFY_KEY_FILE`                                 | *filename*                                          | -                 | HTTPS/TLS private key file, only used if `listen-https` is set.                                                                                                                                                                         |
 | `cert-file`                                | `NTFY_CERT_FILE`                                | *filename*                                          | -                 | HTTPS/TLS certificate file, only used if `listen-https` is set.                                                                                                                                                                         |
-| `firebase-key-file`                        | `NTFY_FIREBASE_KEY_FILE`                        | *filename*                                          | -                 | If set, also publish messages to a Firebase Cloud Messaging (FCM) topic for your app. This is optional and only required to save battery when using the Android app. See [Firebase (FCM)](#firebase-fcm).                               |
 | `database-url`                             | `NTFY_DATABASE_URL`                             | *string (connection URL)*                           | -                 | PostgreSQL connection string (e.g. `postgres://user:pass@host:5432/ntfy`). If set, uses PostgreSQL for all database-backed stores (message cache, user manager, web push) instead of SQLite. See [database options](#database-options). |
 | `database-replica-urls`                    | `NTFY_DATABASE_REPLICA_URLS`                    | *list of strings (connection URLs)*                 | -                 | PostgreSQL read replica connection strings. Non-critical read-only queries are distributed across replicas (round-robin) with automatic fallback to primary. Requires `database-url`.                                                   |
 | `cache-file`                               | `NTFY_CACHE_FILE`                               | *filename*                                          | -                 | If set, messages are cached in a local SQLite database instead of only in-memory. This allows for service restarts without losing messages in support of the since= parameter. See [message cache](#message-cache).                     |
@@ -2447,17 +2225,11 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `smtp-server-listen`                       | `NTFY_SMTP_SERVER_LISTEN`                       | `[ip]:port`                                         | -                 | Defines the IP address and port the SMTP server will listen on, e.g. `:25` or `1.2.3.4:25`                                                                                                                                              |
 | `smtp-server-domain`                       | `NTFY_SMTP_SERVER_DOMAIN`                       | *domain name*                                       | -                 | SMTP server e-mail domain, e.g. `ntfy.sh`                                                                                                                                                                                               |
 | `smtp-server-addr-prefix`                  | `NTFY_SMTP_SERVER_ADDR_PREFIX`                  | *string*                                            | -                 | Optional prefix for the e-mail addresses to prevent spam, e.g. `ntfy-`                                                                                                                                                                  |
-| `twilio-account`                           | `NTFY_TWILIO_ACCOUNT`                           | *string*                                            | -                 | Twilio account SID, e.g. AC12345beefbeef67890beefbeef122586                                                                                                                                                                             |
-| `twilio-auth-token`                        | `NTFY_TWILIO_AUTH_TOKEN`                        | *string*                                            | -                 | Twilio auth token, e.g. affebeef258625862586258625862586                                                                                                                                                                                |
-| `twilio-phone-number`                      | `NTFY_TWILIO_PHONE_NUMBER`                      | *string*                                            | -                 | Twilio outgoing phone number, e.g. +18775132586                                                                                                                                                                                         |
-| `twilio-verify-service`                    | `NTFY_TWILIO_VERIFY_SERVICE`                    | *string*                                            | -                 | Twilio Verify service SID, e.g. VA12345beefbeef67890beefbeef122586                                                                                                                                                                      |
 | `keepalive-interval`                       | `NTFY_KEEPALIVE_INTERVAL`                       | *duration*                                          | 45s               | Interval in which keepalive messages are sent to the client. This is to prevent intermediaries closing the connection for inactivity. Note that the Android app has a hardcoded timeout at 77s, so it should be less than that.         |
 | `manager-interval`                         | `NTFY_MANAGER_INTERVAL`                         | *duration*                                          | 1m                | Interval in which the manager prunes old messages, deletes topics and prints the stats.                                                                                                                                                 |
-| `message-size-limit`                       | `NTFY_MESSAGE_SIZE_LIMIT`                       | *size*                                              | 4K                | The size limit for the message body. Please note that this is largely untested, and that FCM/APNS have limits around 4KB. If you increase this size limit, FCM and APNS will NOT work for large messages.                               |
+| `message-size-limit`                       | `NTFY_MESSAGE_SIZE_LIMIT`                       | *size*                                              | 4K                | The size limit for the message body. Please note that this is largely untested, and that APNs has a limit around 4KB. If you increase this size limit, APNs will NOT work for large messages.                                    |
 | `message-delay-limit`                      | `NTFY_MESSAGE_DELAY_LIMIT`                      | *duration*                                          | 3d                | Amount of time a message can be [scheduled](publish.md#scheduled-delivery) into the future when using the `Delay` header                                                                                                                |
 | `global-topic-limit`                       | `NTFY_GLOBAL_TOPIC_LIMIT`                       | *number*                                            | 15,000            | Rate limiting: Total number of topics before the server rejects new topics.                                                                                                                                                             |
-| `upstream-base-url`                        | `NTFY_UPSTREAM_BASE_URL`                        | *URL*                                               | `https://ntfy.sh` | Forward poll request to an upstream server, this is needed for iOS push notifications for self-hosted servers                                                                                                                           |
-| `upstream-access-token`                    | `NTFY_UPSTREAM_ACCESS_TOKEN`                    | *string*                                            | `tk_zyYLYj...`    | Access token to use for the upstream server; needed only if upstream rate limits are exceeded or upstream server requires auth                                                                                                          |
 | `visitor-attachment-total-size-limit`      | `NTFY_VISITOR_ATTACHMENT_TOTAL_SIZE_LIMIT`      | *size*                                              | 100M              | Rate limiting: Total storage limit used for attachments per visitor, for all attachments combined. Storage is freed after attachments expire. See `attachment-expiry-duration`.                                                         |
 | `visitor-attachment-daily-bandwidth-limit` | `NTFY_VISITOR_ATTACHMENT_DAILY_BANDWIDTH_LIMIT` | *size*                                              | 500M              | Rate limiting: Total daily traffic limit per visitor, covering attachment downloads/uploads and messages replayed from the cache by poll requests. This is to protect your bandwidth costs from exploding.                              |
 | `visitor-email-limit-burst`                | `NTFY_VISITOR_EMAIL_LIMIT_BURST`                | *number*                                            | 16                | Rate limiting:Initial limit of e-mails per visitor                                                                                                                                                                                      |
@@ -2481,9 +2253,6 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `enable-login`                             | `NTFY_ENABLE_LOGIN`                             | *boolean* (`true` or `false`)                       | `false`           | Allows users to log in via the web app, or API                                                                                                                                                                                          |
 | `enable-reservations`                      | `NTFY_ENABLE_RESERVATIONS`                      | *boolean* (`true` or `false`)                       | `false`           | Allows users to reserve topics (if their tier allows it)                                                                                                                                                                                |
 | `require-login`                            | `NTFY_REQUIRE_LOGIN`                            | *boolean* (`true` or `false`)                       | `false`           | All actions via the web app require a login                                                                                                                                                                                             |
-| `stripe-secret-key`                        | `NTFY_STRIPE_SECRET_KEY`                        | *string*                                            | -                 | Payments: Key used for the Stripe API communication, this enables payments                                                                                                                                                              |
-| `stripe-webhook-key`                       | `NTFY_STRIPE_WEBHOOK_KEY`                       | *string*                                            | -                 | Payments: Key required to validate the authenticity of incoming webhooks from Stripe                                                                                                                                                    |
-| `billing-contact`                          | `NTFY_BILLING_CONTACT`                          | *email address* or *website*                        | -                 | Payments: Email or website displayed in Upgrade dialog as a billing contact                                                                                                                                                             |
 | `web-push-public-key`                      | `NTFY_WEB_PUSH_PUBLIC_KEY`                      | *string*                                            | -                 | Web Push: Public Key. Run `ntfy webpush keys` to generate                                                                                                                                                                               |
 | `web-push-private-key`                     | `NTFY_WEB_PUSH_PRIVATE_KEY`                     | *string*                                            | -                 | Web Push: Private Key. Run `ntfy webpush keys` to generate                                                                                                                                                                              |
 | `web-push-file`                            | `NTFY_WEB_PUSH_FILE`                            | *string*                                            | -                 | Web Push: Database file that stores subscriptions                                                                                                                                                                                       |
@@ -2543,7 +2312,6 @@ OPTIONS:
    --listen-unix-mode value, --listen_unix_mode value                                                                     file permissions of unix socket, e.g. 0700 (default: system default) [$NTFY_LISTEN_UNIX_MODE]
    --key-file value, --key_file value, -K value                                                                           private key file, if listen-https is set [$NTFY_KEY_FILE]
    --cert-file value, --cert_file value, -E value                                                                         certificate file, if listen-https is set [$NTFY_CERT_FILE]
-   --firebase-key-file value, --firebase_key_file value, -F value                                                         Firebase credentials file; if set additionally publish to FCM topic [$NTFY_FIREBASE_KEY_FILE]
    --cache-file value, --cache_file value, -C value                                                                       cache file used for message caching [$NTFY_CACHE_FILE]
    --cache-duration since, --cache_duration since, -b since                                                               buffer messages for this time to allow since requests (default: "12h") [$NTFY_CACHE_DURATION]
    --cache-batch-size value, --cache_batch_size value                                                                     max size of messages to batch together when writing to message cache (if zero, writes are synchronous) (default: 0) [$NTFY_BATCH_SIZE]
@@ -2564,8 +2332,6 @@ OPTIONS:
    --enable-signup, --enable_signup                                                                                       allows users to sign up via the web app, or API (default: false) [$NTFY_ENABLE_SIGNUP]
    --enable-login, --enable_login                                                                                         allows users to log in via the web app, or API (default: false) [$NTFY_ENABLE_LOGIN]
    --enable-reservations, --enable_reservations                                                                           allows users to reserve topics (if their tier allows it) (default: false) [$NTFY_ENABLE_RESERVATIONS]
-   --upstream-base-url value, --upstream_base_url value                                                                   forward poll request to an upstream server, this is needed for iOS push notifications for self-hosted servers [$NTFY_UPSTREAM_BASE_URL]
-   --upstream-access-token value, --upstream_access_token value                                                           access token to use for the upstream server; needed only if upstream rate limits are exceeded or upstream server requires auth [$NTFY_UPSTREAM_ACCESS_TOKEN]
    --smtp-sender-addr value, --smtp_sender_addr value                                                                     SMTP server address (host:port) for outgoing emails [$NTFY_SMTP_SENDER_ADDR]
    --smtp-sender-user value, --smtp_sender_user value                                                                     SMTP user (if e-mail sending is enabled) [$NTFY_SMTP_SENDER_USER]
    --smtp-sender-pass value, --smtp_sender_pass value                                                                     SMTP password (if e-mail sending is enabled) [$NTFY_SMTP_SENDER_PASS]
@@ -2573,10 +2339,6 @@ OPTIONS:
    --smtp-server-listen value, --smtp_server_listen value                                                                 SMTP server address (ip:port) for incoming emails, e.g. :25 [$NTFY_SMTP_SERVER_LISTEN]
    --smtp-server-domain value, --smtp_server_domain value                                                                 SMTP domain for incoming e-mail, e.g. ntfy.sh [$NTFY_SMTP_SERVER_DOMAIN]
    --smtp-server-addr-prefix value, --smtp_server_addr_prefix value                                                       SMTP email address prefix for topics to prevent spam (e.g. 'ntfy-') [$NTFY_SMTP_SERVER_ADDR_PREFIX]
-   --twilio-account value, --twilio_account value                                                                         Twilio account SID, used for phone calls, e.g. AC123... [$NTFY_TWILIO_ACCOUNT]
-   --twilio-auth-token value, --twilio_auth_token value                                                                   Twilio auth token [$NTFY_TWILIO_AUTH_TOKEN]
-   --twilio-phone-number value, --twilio_phone_number value                                                               Twilio number to use for outgoing calls [$NTFY_TWILIO_PHONE_NUMBER]
-   --twilio-verify-service value, --twilio_verify_service value                                                           Twilio Verify service ID, used for phone number verification [$NTFY_TWILIO_VERIFY_SERVICE]
    --message-size-limit value, --message_size_limit value                                                                 size limit for the message (see docs for limitations) (default: "4K") [$NTFY_MESSAGE_SIZE_LIMIT]
    --message-delay-limit value, --message_delay_limit value                                                               max duration a message can be scheduled into the future (default: "3d") [$NTFY_MESSAGE_DELAY_LIMIT]
    --global-topic-limit value, --global_topic_limit value, -T value                                                       total number of topics allowed (default: 15000) [$NTFY_GLOBAL_TOPIC_LIMIT]
@@ -2597,9 +2359,6 @@ OPTIONS:
    --behind-proxy, --behind_proxy, -P                                                                                     if set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting) (default: false) [$NTFY_BEHIND_PROXY]
    --proxy-forwarded-header value, --proxy_forwarded_header value                                                         use specified header to determine visitor IP address (for rate limiting) (default: "X-Forwarded-For") [$NTFY_PROXY_FORWARDED_HEADER]
    --proxy-trusted-hosts value, --proxy_trusted_hosts value                                                               comma-separated list of trusted IP addresses, hosts, or CIDRs to remove from forwarded header [$NTFY_PROXY_TRUSTED_HOSTS]
-   --stripe-secret-key value, --stripe_secret_key value                                                                   key used for the Stripe API communication, this enables payments [$NTFY_STRIPE_SECRET_KEY]
-   --stripe-webhook-key value, --stripe_webhook_key value                                                                 key required to validate the authenticity of incoming webhooks from Stripe [$NTFY_STRIPE_WEBHOOK_KEY]
-   --billing-contact value, --billing_contact value                                                                       e-mail or website to display in upgrade dialog (only if payments are enabled) [$NTFY_BILLING_CONTACT]
    --enable-metrics, --enable_metrics                                                                                     if set, Prometheus metrics are exposed via the /metrics endpoint (default: false) [$NTFY_ENABLE_METRICS]
    --metrics-listen-http value, --metrics_listen_http value                                                               ip:port used to expose the metrics endpoint (implicitly enables metrics) [$NTFY_METRICS_LISTEN_HTTP]
    --profile-listen-http value, --profile_listen_http value                                                               ip:port used to expose the profiling endpoints (implicitly enables profiling) [$NTFY_PROFILE_LISTEN_HTTP]

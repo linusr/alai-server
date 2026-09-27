@@ -19,10 +19,6 @@ func TestConfig_HashExcludesSecrets(t *testing.T) {
 	// against a publicly visible hash.
 	conf1 := server.NewConfig()
 	conf2 := server.NewConfig()
-	conf2.StripeSecretKey = "sk_live_topsecret"
-	conf2.StripeWebhookKey = "whsec_topsecret"
-	conf2.TwilioAuthToken = "twilio-auth-token"
-	conf2.UpstreamAccessToken = "tk_upstream"
 	conf2.WebPushPrivateKey = "web-push-private-key"
 	conf2.SMTPSenderPass = "hunter2"
 	conf2.AuthUsers = []*user.User{{Name: "phil", Hash: "$2a$10$somebcrypthash"}}

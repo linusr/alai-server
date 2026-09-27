@@ -28,7 +28,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	dbtest "heckel.io/ntfy/v2/db/test"
 	"heckel.io/ntfy/v2/log"
-	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
@@ -75,68 +74,19 @@ func TestServer_PublishAndPoll(t *testing.T) {
 	})
 }
 
-func TestServer_PublishWithFirebase(t *testing.T) {
+func TestServer_PublishWithFirebaseParamIgnored(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		sender := newTestFirebaseSender(10)
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
 
-		response := request(t, s, "PUT", "/mytopic", "my first message", nil)
-		msg1 := toMessage(t, response.Body.String())
-		require.NotEmpty(t, msg1.ID)
-		require.Equal(t, "my first message", msg1.Message)
-
-		time.Sleep(100 * time.Millisecond) // Firebase publishing happens
-		require.Equal(t, 1, len(sender.Messages()))
-		require.Equal(t, "my first message", sender.Messages()[0].Data["message"])
-		require.Equal(t, "my first message", sender.Messages()[0].APNS.Payload.Aps.Alert.Body)
-		require.Equal(t, "my first message", sender.Messages()[0].APNS.Payload.CustomData["message"])
-	})
-}
-
-func TestServer_PublishWithoutFirebase(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		sender := newTestFirebaseSender(10)
-		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
-
-		response := request(t, s, "PUT", "/mytopic", "my first message", map[string]string{
-			"firebase": "no",
+		response := request(t, s, "PUT", "/mytopic", "header message", map[string]string{
+			"X-Firebase": "no",
 		})
-		msg1 := toMessage(t, response.Body.String())
-		require.NotEmpty(t, msg1.ID)
-		require.Equal(t, "my first message", msg1.Message)
+		require.Equal(t, 200, response.Code)
+		require.Equal(t, "header message", toMessage(t, response.Body.String()).Message)
 
-		time.Sleep(100 * time.Millisecond) // Firebase publishing happens
-		require.Equal(t, 0, len(sender.Messages()))
-	})
-}
-
-func TestServer_PublishWithFirebase_WithoutUsers_AndWithoutPanic(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		// This tests issue #641, which used to panic before the fix
-
-		firebaseKeyFile := filepath.Join(t.TempDir(), "firebase.json")
-		contents := `{
-  "type": "service_account",
-  "project_id": "ntfy-test",
-  "private_key_id": "fsfhskjdfhskdhfskdjfhsdf",
-  "private_key": "lalala",
-  "client_email": "firebase-adminsdk-muv04@ntfy-test.iam.gserviceaccount.com",
-  "client_id": "123123213",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-muv04%40ntfy-test.iam.gserviceaccount.com"
-}
-`
-		require.Nil(t, os.WriteFile(firebaseKeyFile, []byte(contents), 0600))
-		c := newTestConfig(t, databaseURL)
-		c.FirebaseKeyFile = firebaseKeyFile
-		s := newTestServer(t, c)
-
-		response := request(t, s, "PUT", "/mytopic", "my first message", nil)
-		require.Equal(t, "my first message", toMessage(t, response.Body.String()).Message)
+		response = request(t, s, "PUT", "/mytopic?firebase=0", "query message", nil)
+		require.Equal(t, 200, response.Code)
+		require.Equal(t, "query message", toMessage(t, response.Body.String()).Message)
 	})
 }
 
@@ -1587,18 +1537,20 @@ func TestServer_PublishDelayedEmail_Fail(t *testing.T) {
 	})
 }
 
-func TestServer_PublishDelayedCall_Fail(t *testing.T) {
+func TestServer_PublishCall_Disabled(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		c := newTestConfigWithAuthFile(t, databaseURL)
-		c.TwilioAccount = "AC1234567890"
-		c.TwilioAuthToken = "AAEAA1234567890"
-		c.TwilioPhoneNumber = "+1234567890"
-		s := newTestServer(t, c)
-		response := request(t, s, "PUT", "/mytopic", "fail", map[string]string{
-			"Call":  "yes",
-			"Delay": "20 min",
-		})
-		require.Equal(t, 40037, toHTTPError(t, response.Body.String()).Code)
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
+		for _, headers := range []map[string]string{
+			{"Call": "yes"},
+			{"X-Call": "+12223334444"},
+			{"Call": "yes", "Delay": "20 min"},
+		} {
+			response := request(t, s, "PUT", "/mytopic", "fail", headers)
+			require.Equal(t, 400, response.Code)
+			require.Equal(t, 40032, toHTTPError(t, response.Body.String()).Code)
+		}
+		response := request(t, s, "PUT", "/", `{"topic":"mytopic","message":"fail","call":"yes"}`, nil)
+		require.Equal(t, 40032, toHTTPError(t, response.Body.String()).Code)
 	})
 }
 
@@ -2357,20 +2309,16 @@ func TestServer_PublishAsJSON_NoCache(t *testing.T) {
 	})
 }
 
-func TestServer_PublishAsJSON_WithoutFirebase(t *testing.T) {
+func TestServer_PublishAsJSON_FirebaseFieldIgnored(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		sender := newTestFirebaseSender(10)
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
 
 		body := `{"topic":"mytopic","message": "my first message","firebase":"no"}`
 		response := request(t, s, "PUT", "/", body, nil)
+		require.Equal(t, 200, response.Code)
 		msg1 := toMessage(t, response.Body.String())
 		require.NotEmpty(t, msg1.ID)
 		require.Equal(t, "my first message", msg1.Message)
-
-		time.Sleep(100 * time.Millisecond) // Firebase publishing happens
-		require.Equal(t, 0, len(sender.Messages()))
 	})
 }
 
@@ -3661,98 +3609,6 @@ func TestServer_PublishWithUTF8MimeHeader(t *testing.T) {
 	})
 }
 
-func TestServer_UpstreamBaseURL_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		t.Parallel()
-		var pollID atomic.Pointer[string]
-		upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			body, err := io.ReadAll(r.Body)
-			require.Nil(t, err)
-			require.Equal(t, "/87c9cddf7b0105f5fe849bf084c6e600be0fde99be3223335199b4965bd7b735", r.URL.Path)
-			require.Equal(t, "", string(body))
-			require.NotEmpty(t, r.Header.Get("X-Poll-ID"))
-			pollID.Store(util.String(r.Header.Get("X-Poll-ID")))
-		}))
-		defer upstreamServer.Close()
-
-		c := newTestConfigWithAuthFile(t, databaseURL)
-		c.BaseURL = "http://myserver.internal"
-		c.UpstreamBaseURL = upstreamServer.URL
-		s := newTestServer(t, c)
-
-		// Send message, and wait for upstream server to receive it
-		response := request(t, s, "PUT", "/mytopic", `hi there`, nil)
-		require.Equal(t, 200, response.Code)
-		m := toMessage(t, response.Body.String())
-		require.NotEmpty(t, m.ID)
-		require.Equal(t, "hi there", m.Message)
-		waitFor(t, func() bool {
-			pID := pollID.Load()
-			return pID != nil && *pID == m.ID
-		})
-	})
-}
-
-func TestServer_UpstreamBaseURL_With_Access_Token_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		t.Parallel()
-		var pollID atomic.Pointer[string]
-		upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			body, err := io.ReadAll(r.Body)
-			require.Nil(t, err)
-			require.Equal(t, "/a1c72bcb4daf5af54d13ef86aea8f76c11e8b88320d55f1811d5d7b173bcc1df", r.URL.Path)
-			require.Equal(t, "Bearer tk_1234567890", r.Header.Get("Authorization"))
-			require.Equal(t, "", string(body))
-			require.NotEmpty(t, r.Header.Get("X-Poll-ID"))
-			pollID.Store(util.String(r.Header.Get("X-Poll-ID")))
-		}))
-		defer upstreamServer.Close()
-
-		c := newTestConfigWithAuthFile(t, databaseURL)
-		c.BaseURL = "http://myserver.internal"
-		c.UpstreamBaseURL = upstreamServer.URL
-		c.UpstreamAccessToken = "tk_1234567890"
-		s := newTestServer(t, c)
-
-		// Send message, and wait for upstream server to receive it
-		response := request(t, s, "PUT", "/mytopic1", `hi there`, nil)
-		require.Equal(t, 200, response.Code)
-		m := toMessage(t, response.Body.String())
-		require.NotEmpty(t, m.ID)
-		require.Equal(t, "hi there", m.Message)
-		waitFor(t, func() bool {
-			pID := pollID.Load()
-			return pID != nil && *pID == m.ID
-		})
-	})
-}
-
-func TestServer_UpstreamBaseURL_DoNotForwardUnifiedPush(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		t.Parallel()
-		upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			t.Fatal("UnifiedPush messages should not be forwarded")
-		}))
-		defer upstreamServer.Close()
-
-		c := newTestConfigWithAuthFile(t, databaseURL)
-		c.BaseURL = "http://myserver.internal"
-		c.UpstreamBaseURL = upstreamServer.URL
-		s := newTestServer(t, c)
-
-		// Send UP message, this should not forward to upstream server
-		response := request(t, s, "PUT", "/mytopic?up=1", `hi there`, nil)
-		require.Equal(t, 200, response.Code)
-		m := toMessage(t, response.Body.String())
-		require.NotEmpty(t, m.ID)
-		require.Equal(t, "hi there", m.Message)
-
-		// Forwarding is done asynchronously, so wait a bit.
-		// This ensures that the t.Fatal above is actually not triggered.
-		time.Sleep(500 * time.Millisecond)
-	})
-}
-
 func TestServer_MessageTemplate(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
@@ -4758,55 +4614,6 @@ func TestServer_DeleteAndClear_InvalidSequenceID(t *testing.T) {
 	})
 }
 
-func TestServer_DeleteMessage_WithFirebase(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		sender := newTestFirebaseSender(10)
-		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
-
-		// Publish a message
-		response := request(t, s, "PUT", "/mytopic/firebase-seq", "test message", nil)
-		require.Equal(t, 200, response.Code)
-
-		time.Sleep(100 * time.Millisecond) // Firebase publishing happens
-		require.Equal(t, 1, len(sender.Messages()))
-		require.Equal(t, "message", sender.Messages()[0].Data["event"])
-
-		// Delete the message
-		response = request(t, s, "DELETE", "/mytopic/firebase-seq", "", nil)
-		require.Equal(t, 200, response.Code)
-
-		time.Sleep(100 * time.Millisecond) // Firebase publishing happens
-		require.Equal(t, 2, len(sender.Messages()))
-		require.Equal(t, "message_delete", sender.Messages()[1].Data["event"])
-		require.Equal(t, "firebase-seq", sender.Messages()[1].Data["sequence_id"])
-	})
-}
-
-func TestServer_ClearMessage_WithFirebase(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		sender := newTestFirebaseSender(10)
-		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
-
-		// Publish a message
-		response := request(t, s, "PUT", "/mytopic/firebase-clear-seq", "test message", nil)
-		require.Equal(t, 200, response.Code)
-
-		time.Sleep(100 * time.Millisecond)
-		require.Equal(t, 1, len(sender.Messages()))
-
-		// Clear the message
-		response = request(t, s, "PUT", "/mytopic/firebase-clear-seq/clear", "", nil)
-		require.Equal(t, 200, response.Code)
-
-		time.Sleep(100 * time.Millisecond)
-		require.Equal(t, 2, len(sender.Messages()))
-		require.Equal(t, "message_clear", sender.Messages()[1].Data["event"])
-		require.Equal(t, "firebase-clear-seq", sender.Messages()[1].Data["sequence_id"])
-	})
-}
-
 func TestServer_UpdateScheduledMessage(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
@@ -5006,12 +4813,6 @@ func TestServer_DeleteScheduledMessage_WithAttachment(t *testing.T) {
 		// Verify attachment file was deleted
 		require.NoFileExists(t, attachmentFile)
 	})
-}
-
-func newMemTestCache(t *testing.T) *message.Cache {
-	c, err := message.NewMemStore()
-	require.Nil(t, err)
-	return c
 }
 
 func forEachBackend(t *testing.T, f func(t *testing.T, databaseURL string)) {
@@ -5392,27 +5193,6 @@ func TestServer_Publish_InvalidUTF8InTags(t *testing.T) {
 	msg := toMessage(t, response.Body.String())
 	require.Equal(t, "probl\uFFFDme", msg.Tags[0])
 	require.Equal(t, "syst\uFFFDme", msg.Tags[1])
-}
-
-func TestServer_Publish_InvalidUTF8WithFirebase(t *testing.T) {
-	// Verify that sanitization happens before Firebase dispatch, so Firebase
-	// receives clean UTF-8 strings rather than invalid byte sequences
-	sender := newTestFirebaseSender(10)
-	s := newTestServer(t, newTestConfig(t, ""))
-	s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
-
-	response := request(t, s, "PUT", "/mytopic", "", map[string]string{
-		"X-Message": "notificaci\xf3n: alerta",
-		"Title":     "\xc9clipse",
-		"Tags":      "probl\xe8me",
-	})
-	require.Equal(t, 200, response.Code)
-
-	time.Sleep(100 * time.Millisecond) // Firebase publishing happens asynchronously
-	require.Equal(t, 1, len(sender.Messages()))
-	require.Equal(t, "notificaci\uFFFDn: alerta", sender.Messages()[0].Data["message"])
-	require.Equal(t, "\uFFFDclipse", sender.Messages()[0].Data["title"])
-	require.Equal(t, "probl\uFFFDme", sender.Messages()[0].Data["tags"])
 }
 
 func TestServer_BanFeed_RateLimitedIPBanned(t *testing.T) {

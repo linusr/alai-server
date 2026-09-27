@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"heckel.io/ntfy/v2/log"
-	"heckel.io/ntfy/v2/payments"
 )
 
 // User is a struct that represents a user
@@ -164,8 +163,8 @@ type Stats struct {
 type Billing struct {
 	StripeCustomerID            string
 	StripeSubscriptionID        string
-	StripeSubscriptionStatus    payments.SubscriptionStatus
-	StripeSubscriptionInterval  payments.PriceRecurringInterval
+	StripeSubscriptionStatus    string
+	StripeSubscriptionInterval  string
 	StripeSubscriptionPaidUntil time.Time
 	StripeSubscriptionCancelAt  time.Time
 }

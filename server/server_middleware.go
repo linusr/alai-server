@@ -105,15 +105,6 @@ func (s *Server) ensureAdmin(next handleFunc) handleFunc {
 	})
 }
 
-func (s *Server) ensureCallsEnabled(next handleFunc) handleFunc {
-	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
-		if s.config.TwilioAccount == "" || s.userManager == nil {
-			return errHTTPNotFound
-		}
-		return next(w, r, v)
-	}
-}
-
 func (s *Server) ensureEmailsEnabled(next handleFunc) handleFunc {
 	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
 		if s.mailer == nil || s.userManager == nil {
@@ -121,24 +112,6 @@ func (s *Server) ensureEmailsEnabled(next handleFunc) handleFunc {
 		}
 		return next(w, r, v)
 	}
-}
-
-func (s *Server) ensurePaymentsEnabled(next handleFunc) handleFunc {
-	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
-		if s.config.StripeSecretKey == "" || s.stripe == nil {
-			return errHTTPNotFound
-		}
-		return next(w, r, v)
-	}
-}
-
-func (s *Server) ensureStripeCustomer(next handleFunc) handleFunc {
-	return s.ensureUser(func(w http.ResponseWriter, r *http.Request, v *visitor) error {
-		if v.User().Billing.StripeCustomerID == "" {
-			return errHTTPBadRequestNotAPaidUser
-		}
-		return next(w, r, v)
-	})
 }
 
 func (s *Server) withAccountSync(next handleFunc) handleFunc {

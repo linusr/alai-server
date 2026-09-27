@@ -24,21 +24,17 @@ type publishMessage struct {
 	Filename   string         `json:"filename"`
 	Email      string         `json:"email"`
 	Call       string         `json:"call"`
-	Cache      string         `json:"cache"`    // use string as it defaults to true (or use &bool instead)
-	Firebase   string         `json:"firebase"` // use string as it defaults to true (or use &bool instead)
+	Cache      string         `json:"cache"` // use string as it defaults to true (or use &bool instead)
 	Delay      string         `json:"delay"`
 }
 
 // dispatchOpts selects which delivery targets fire for a published message, beyond delivery
 // to local subscribers (see Server.dispatch)
 type dispatchOpts struct {
-	firebase bool   // Send to Firebase (if configured)
-	email    string // Send an email to this address (if a mailer is configured)
-	call     string // Call this phone number (if Twilio is configured)
-	upstream bool   // Forward a poll request to the upstream server (if configured)
-	webPush  bool   // Publish to web push endpoints (if configured)
-	apns     bool   // Publish to registered APNs devices (if configured)
-	async    bool   // Deliver to local subscribers in a goroutine, logging errors instead of returning them
+	email   string // Send an email to this address (if a mailer is configured)
+	webPush bool   // Publish to web push endpoints (if configured)
+	apns    bool   // Publish to registered APNs devices (if configured)
+	async   bool   // Deliver to local subscribers in a goroutine, logging errors instead of returning them
 }
 
 // messageEncoder is a function that knows how to encode a message
@@ -237,16 +233,6 @@ type apiAccountLoginResponse struct {
 	Username string `json:"username"`
 }
 
-type apiAccountPhoneNumberVerifyRequest struct {
-	Number  string `json:"number"`
-	Channel string `json:"channel"`
-}
-
-type apiAccountPhoneNumberAddRequest struct {
-	Number string `json:"number"`
-	Code   string `json:"code"` // Only set when adding a phone number
-}
-
 // apiAccountEmailRequest carries an email address for the add/delete/set-primary/resend
 // endpoints (all of which identify an email by address in the JSON body).
 type apiAccountEmailRequest struct {
@@ -282,7 +268,6 @@ type apiAccountLimits struct {
 	Messages                 int64  `json:"messages"`
 	MessagesExpiryDuration   int64  `json:"messages_expiry_duration"`
 	Emails                   int64  `json:"emails"`
-	Calls                    int64  `json:"calls"`
 	Reservations             int64  `json:"reservations"`
 	AttachmentTotalSize      int64  `json:"attachment_total_size"`
 	AttachmentFileSize       int64  `json:"attachment_file_size"`
@@ -295,8 +280,6 @@ type apiAccountStats struct {
 	MessagesRemaining            int64 `json:"messages_remaining"`
 	Emails                       int64 `json:"emails"`
 	EmailsRemaining              int64 `json:"emails_remaining"`
-	Calls                        int64 `json:"calls"`
-	CallsRemaining               int64 `json:"calls_remaining"`
 	Reservations                 int64 `json:"reservations"`
 	ReservationsRemaining        int64 `json:"reservations_remaining"`
 	AttachmentTotalSize          int64 `json:"attachment_total_size"`
@@ -317,15 +300,6 @@ type apiAccountEmailInfo struct {
 	Pending bool   `json:"pending,omitempty"`
 }
 
-type apiAccountBilling struct {
-	Customer     bool   `json:"customer"`
-	Subscription bool   `json:"subscription"`
-	Status       string `json:"status,omitempty"`
-	Interval     string `json:"interval,omitempty"`
-	PaidUntil    int64  `json:"paid_until,omitempty"`
-	CancelAt     int64  `json:"cancel_at,omitempty"`
-}
-
 type apiAccountResponse struct {
 	Username      string                     `json:"username"`
 	Role          string                     `json:"role,omitempty"`
@@ -338,12 +312,10 @@ type apiAccountResponse struct {
 	Subscriptions []*user.Subscription       `json:"subscriptions,omitempty"`
 	Reservations  []*apiAccountReservation   `json:"reservations,omitempty"`
 	Tokens        []*apiAccountTokenResponse `json:"tokens,omitempty"`
-	PhoneNumbers  []string                   `json:"phone_numbers,omitempty"`
 	Emails        []*apiAccountEmailInfo     `json:"emails,omitempty"`
 	Tier          *apiAccountTier            `json:"tier,omitempty"`
 	Limits        *apiAccountLimits          `json:"limits,omitempty"`
 	Stats         *apiAccountStats           `json:"stats,omitempty"`
-	Billing       *apiAccountBilling         `json:"billing,omitempty"`
 }
 
 type apiAccountReservationRequest struct {
@@ -357,41 +329,13 @@ type apiConfigResponse struct {
 	EnableLogin         bool     `json:"enable_login"`
 	RequireLogin        bool     `json:"require_login"`
 	EnableSignup        bool     `json:"enable_signup"`
-	EnablePayments      bool     `json:"enable_payments"`
-	EnableCalls         bool     `json:"enable_calls"`
 	EnableEmails        bool     `json:"enable_emails"`
 	EnableResetPassword bool     `json:"enable_reset_password"`
 	EnableReservations  bool     `json:"enable_reservations"`
 	EnableWebPush       bool     `json:"enable_web_push"`
-	BillingContact      string   `json:"billing_contact"`
 	WebPushPublicKey    string   `json:"web_push_public_key"`
 	DisallowedTopics    []string `json:"disallowed_topics"`
 	ConfigHash          string   `json:"config_hash"`
-}
-
-type apiAccountBillingPrices struct {
-	Month int64 `json:"month"`
-	Year  int64 `json:"year"`
-}
-
-type apiAccountBillingTier struct {
-	Code   string                   `json:"code,omitempty"`
-	Name   string                   `json:"name,omitempty"`
-	Prices *apiAccountBillingPrices `json:"prices,omitempty"`
-	Limits *apiAccountLimits        `json:"limits"`
-}
-
-type apiAccountBillingSubscriptionCreateResponse struct {
-	RedirectURL string `json:"redirect_url"`
-}
-
-type apiAccountBillingSubscriptionChangeRequest struct {
-	Tier     string `json:"tier"`
-	Interval string `json:"interval"`
-}
-
-type apiAccountBillingPortalRedirectResponse struct {
-	RedirectURL string `json:"redirect_url"`
 }
 
 type apiAccountSyncTopicResponse struct {
@@ -406,29 +350,6 @@ func newSuccessResponse() *apiSuccessResponse {
 	return &apiSuccessResponse{
 		Success: true,
 	}
-}
-
-type apiStripeSubscriptionUpdatedEvent struct {
-	ID               string `json:"id"`
-	Customer         string `json:"customer"`
-	Status           string `json:"status"`
-	CurrentPeriodEnd int64  `json:"current_period_end"`
-	CancelAt         int64  `json:"cancel_at"`
-	Items            *struct {
-		Data []*struct {
-			Price *struct {
-				ID        string `json:"id"`
-				Recurring *struct {
-					Interval string `json:"interval"`
-				} `json:"recurring"`
-			} `json:"price"`
-		} `json:"data"`
-	} `json:"items"`
-}
-
-type apiStripeSubscriptionDeletedEvent struct {
-	ID       string `json:"id"`
-	Customer string `json:"customer"`
 }
 
 type apiWebPushUpdateSubscriptionRequest struct {

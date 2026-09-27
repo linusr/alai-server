@@ -74,9 +74,6 @@
 //   Proxy (Yes / No) — radio pair
 //     Maps to hidden behind-proxy checkbox.
 //
-//   iOS support (Yes / No) — radio pair
-//     Sets upstream-base-url to "https://ntfy.sh" when Yes, clears when No.
-//
 //   UnifiedPush (Yes / No) — radio pair
 //     When Yes, enables auth (if not already on) and adds a disabled "*:up*:write-only"
 //     ACL row to the Users tab. The row's fields are grayed out and non-editable. It is
@@ -128,8 +125,7 @@
     { key: "smtp-sender-verify", env: "NTFY_SMTP_SENDER_VERIFY", section: "smtp-out", type: "bool" },
     { key: "smtp-server-listen", env: "NTFY_SMTP_SERVER_LISTEN", section: "smtp-in" },
     { key: "smtp-server-domain", env: "NTFY_SMTP_SERVER_DOMAIN", section: "smtp-in" },
-    { key: "smtp-server-addr-prefix", env: "NTFY_SMTP_SERVER_ADDR_PREFIX", section: "smtp-in" },
-    { key: "upstream-base-url", env: "NTFY_UPSTREAM_BASE_URL", section: "upstream" }
+    { key: "smtp-server-addr-prefix", env: "NTFY_SMTP_SERVER_ADDR_PREFIX", section: "smtp-in" }
   ];
 
   // Feature checkbox → nav tab ID
@@ -148,8 +144,7 @@
     cache: "# Message cache",
     webpush: "# Web push",
     "smtp-out": "# Email notifications (outgoing)",
-    "smtp-in": "# Email publishing (incoming)",
-    upstream: "# Upstream"
+    "smtp-in": "# Email publishing (incoming)"
   };
 
   const durationRegex = /^(\d+)\s*(d|days?|h|hours?|m|mins?|minutes?|s|secs?|seconds?)$/i;
@@ -616,15 +611,6 @@
       warnings.push("Attachments require base-url to be set");
     }
 
-    // Upstream requires base-url and can't equal it
-    if (values["upstream-base-url"]) {
-      if (!baseUrl) {
-        warnings.push("Upstream server requires base-url to be set");
-      } else if (baseUrl === values["upstream-base-url"]) {
-        warnings.push("base-url and upstream-base-url cannot be the same");
-      }
-    }
-
     // enable-signup requires enable-login
     if (values["enable-signup"] && !values["enable-login"]) {
       warnings.push("Enable signup requires enable-login to also be set");
@@ -817,13 +803,6 @@
         pgLabel.style.display = "none";
       }
     });
-
-    // iOS question → upstream-base-url
-    const iosYes = modal.querySelector("input[name=\"cg-ios\"][value=\"yes\"]");
-    const upstreamInput = modal.querySelector("[data-key=\"upstream-base-url\"]");
-    if (iosYes && upstreamInput) {
-      upstreamInput.value = iosYes.checked ? "https://ntfy.sh" : "";
-    }
   }
 
   function prefillDefaults(modal, flags) {

@@ -16,7 +16,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/log"
-	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -645,12 +644,12 @@ func (a *Manager) scanUser(rows *sql.Rows) (*User, error) {
 			Calls:    calls,
 		},
 		Billing: &Billing{
-			StripeCustomerID:            stripeCustomerID.String,                                            // May be empty
-			StripeSubscriptionID:        stripeSubscriptionID.String,                                        // May be empty
-			StripeSubscriptionStatus:    payments.SubscriptionStatus(stripeSubscriptionStatus.String),       // May be empty
-			StripeSubscriptionInterval:  payments.PriceRecurringInterval(stripeSubscriptionInterval.String), // May be empty
-			StripeSubscriptionPaidUntil: time.Unix(stripeSubscriptionPaidUntil.Int64, 0),                    // May be zero
-			StripeSubscriptionCancelAt:  time.Unix(stripeSubscriptionCancelAt.Int64, 0),                     // May be zero
+			StripeCustomerID:            stripeCustomerID.String,                         // May be empty
+			StripeSubscriptionID:        stripeSubscriptionID.String,                     // May be empty
+			StripeSubscriptionStatus:    stripeSubscriptionStatus.String,                 // May be empty
+			StripeSubscriptionInterval:  stripeSubscriptionInterval.String,               // May be empty
+			StripeSubscriptionPaidUntil: time.Unix(stripeSubscriptionPaidUntil.Int64, 0), // May be zero
+			StripeSubscriptionCancelAt:  time.Unix(stripeSubscriptionCancelAt.Int64, 0),  // May be zero
 		},
 		Deleted: deleted.Valid,
 	}
@@ -1799,7 +1798,7 @@ func (a *Manager) readEmail(rows *sql.Rows) (*Email, error) {
 
 // ChangeBilling updates a user's billing fields
 func (a *Manager) ChangeBilling(username string, billing *Billing) error {
-	if _, err := a.db.Exec(a.queries.updateBilling, nullString(billing.StripeCustomerID), nullString(billing.StripeSubscriptionID), nullString(string(billing.StripeSubscriptionStatus)), nullString(string(billing.StripeSubscriptionInterval)), nullInt64(billing.StripeSubscriptionPaidUntil.Unix()), nullInt64(billing.StripeSubscriptionCancelAt.Unix()), username); err != nil {
+	if _, err := a.db.Exec(a.queries.updateBilling, nullString(billing.StripeCustomerID), nullString(billing.StripeSubscriptionID), nullString(billing.StripeSubscriptionStatus), nullString(billing.StripeSubscriptionInterval), nullInt64(billing.StripeSubscriptionPaidUntil.Unix()), nullInt64(billing.StripeSubscriptionCancelAt.Unix()), username); err != nil {
 		return err
 	}
 	return nil

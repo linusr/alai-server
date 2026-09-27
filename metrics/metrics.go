@@ -24,12 +24,6 @@ var (
 	MessagePublishDurationMillis = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "ntfy_message_publish_duration_ms",
 	})
-	FirebasePublishedSuccess = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "ntfy_firebase_published_success",
-	})
-	FirebasePublishedFailure = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "ntfy_firebase_published_failure",
-	})
 	APNSPublishedSuccess = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "ntfy_apns_published_success",
 	})
@@ -47,12 +41,6 @@ var (
 	})
 	EmailsReceivedFailure = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "ntfy_emails_received_failure",
-	})
-	CallsMadeSuccess = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "ntfy_calls_made_success",
-	})
-	CallsMadeFailure = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "ntfy_calls_made_failure",
 	})
 	UnifiedPushPublishedSuccess = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "ntfy_unifiedpush_published_success",
@@ -92,16 +80,12 @@ func init() {
 		MessagesPublishedFailure,
 		MessagesCached,
 		MessagePublishDurationMillis,
-		FirebasePublishedSuccess,
-		FirebasePublishedFailure,
 		APNSPublishedSuccess,
 		APNSPublishedFailure,
 		EmailsPublishedSuccess,
 		EmailsPublishedFailure,
 		EmailsReceivedSuccess,
 		EmailsReceivedFailure,
-		CallsMadeSuccess,
-		CallsMadeFailure,
 		UnifiedPushPublishedSuccess,
 		MatrixPublishedSuccess,
 		MatrixPublishedFailure,

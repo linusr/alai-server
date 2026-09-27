@@ -80,13 +80,10 @@ func (s *Server) configResponse() *apiConfigResponse {
 		EnableLogin:         s.config.EnableLogin,
 		RequireLogin:        s.config.RequireLogin,
 		EnableSignup:        s.config.EnableSignup,
-		EnablePayments:      s.config.StripeSecretKey != "",
-		EnableCalls:         s.config.TwilioAccount != "",
 		EnableEmails:        s.config.SMTPSenderFrom != "",
 		EnableResetPassword: s.config.SMTPSenderFrom != "" && s.config.BaseURL != "", // Reset links need SMTP + an absolute base-url
 		EnableReservations:  s.config.EnableReservations,
 		EnableWebPush:       s.config.WebPushPublicKey != "",
-		BillingContact:      s.config.BillingContact,
 		WebPushPublicKey:    s.config.WebPushPublicKey,
 		DisallowedTopics:    s.config.DisallowedTopics,
 		ConfigHash:          s.config.Hash(),

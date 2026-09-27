@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -40,8 +39,6 @@ import (
 	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/metrics"
 	"heckel.io/ntfy/v2/model"
-	"heckel.io/ntfy/v2/payments"
-	"heckel.io/ntfy/v2/twilio"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"heckel.io/ntfy/v2/webpush"
@@ -62,19 +59,15 @@ type Server struct {
 	topics            map[string]*topic
 	visitors          map[string]*visitor // ip:<ip> or user:<user>
 	ban               *ban.Service        // Abuse ban-feed; nil when the feature is disabled (no ban file)
-	firebaseClient    *firebaseClient
-	twilio            *twilio.Client
-	messages          int64                               // Total number of messages (persisted if messageCache enabled)
-	messagesHistory   []int64                             // Last n values of the messages counter, used to determine rate
-	userManager       *user.Manager                       // Might be nil!
-	messageCache      *message.Cache                      // Database that stores the messages
-	webPush           *webpush.Store                      // Database that stores web push subscriptions
-	apnsStore         *apns.Store                         // Database that stores APNs device registrations
-	apnsSender        apnsSender                          // Sends notifications to APNs, nil if APNs is not configured
-	attachment        *attachment.Store                   // Attachment store (file system or S3)
-	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
-	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
-	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
+	messages          int64               // Total number of messages (persisted if messageCache enabled)
+	messagesHistory   []int64             // Last n values of the messages counter, used to determine rate
+	userManager       *user.Manager       // Might be nil!
+	messageCache      *message.Cache      // Database that stores the messages
+	webPush           *webpush.Store      // Database that stores web push subscriptions
+	apnsStore         *apns.Store         // Database that stores APNs device registrations
+	apnsSender        apnsSender          // Sends notifications to APNs, nil if APNs is not configured
+	attachment        *attachment.Store   // Attachment store (file system or S3)
+	metricsHandler    http.Handler        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
 	closeChan         chan bool
 	mu                sync.RWMutex
 }
@@ -105,45 +98,35 @@ var (
 	webAppPasswordResetPathPrefix = "/account/password/reset/"                                     // Browser landing route; raw token appended
 	webAppPasswordResetRegex      = regexp.MustCompile(`^/account/password/reset/[-_A-Za-z0-9]+$`) // Password-reset landing (served by the web app)
 
-	accountPath                                          = "/account"
-	matrixPushPath                                       = "/_matrix/push/v1/notify"
-	metricsPath                                          = "/metrics"
-	apiHealthPath                                        = "/v1/health"
-	apiVersionPath                                       = "/v1/version"
-	apiConfigPath                                        = "/v1/config"
-	apiStatsPath                                         = "/v1/stats"
-	apiWebPushPath                                       = "/v1/webpush"
-	apiAPNSPath                                          = "/v1/apns"
-	apiTiersPath                                         = "/v1/tiers"
-	apiUsersPath                                         = "/v1/users"
-	apiUsersAccessPath                                   = "/v1/users/access"
-	apiAccountPath                                       = "/v1/account"
-	apiAccountLoginPath                                  = "/v1/account/login"
-	apiAccountTokenPath                                  = "/v1/account/token"
-	apiAccountPasswordPath                               = "/v1/account/password"
-	apiAccountSettingsPath                               = "/v1/account/settings"
-	apiAccountSubscriptionPath                           = "/v1/account/subscription"
-	apiAccountReservationPath                            = "/v1/account/reservation"
-	apiAccountPhonePath                                  = "/v1/account/phone"
-	apiAccountPhoneVerifyPath                            = "/v1/account/phone/verify"
-	apiAccountEmailPath                                  = "/v1/account/email"
-	apiAccountEmailVerifyPath                            = "/v1/account/email/verify"
-	apiAccountEmailPrimaryPath                           = "/v1/account/email/primary"
-	apiAccountEmailResendPath                            = "/v1/account/email/resend"
-	apiAccountPasswordResetRequestPath                   = "/v1/account/password/reset/request"
-	apiAccountPasswordResetPath                          = "/v1/account/password/reset"
-	apiAccountBillingPortalPath                          = "/v1/account/billing/portal"
-	apiAccountBillingWebhookPath                         = "/v1/account/billing/webhook"
-	apiAccountBillingSubscriptionPath                    = "/v1/account/billing/subscription"
-	apiAccountBillingSubscriptionCheckoutSuccessTemplate = "/v1/account/billing/subscription/success/{CHECKOUT_SESSION_ID}"
-	apiAccountBillingSubscriptionCheckoutSuccessRegex    = regexp.MustCompile(`/v1/account/billing/subscription/success/(.+)$`)
-	apiAccountReservationSingleRegex                     = regexp.MustCompile(`/v1/account/reservation/([-_A-Za-z0-9]{1,64})$`)
-	staticRegex                                          = regexp.MustCompile(`^/(static/.+|app.html|sw.js|sw.js.map)$`)
-	docsRegex                                            = regexp.MustCompile(`^/docs(|/.*)$`)
-	fileRegex                                            = regexp.MustCompile(`^/file/([-_A-Za-z0-9]{1,64})(?:\.[A-Za-z0-9]{1,16})?$`)
-	urlRegex                                             = regexp.MustCompile(`^https?://`)
-	phoneNumberRegex                                     = regexp.MustCompile(`^\+\d{1,100}$`)
-	emailAddressRegex                                    = regexp.MustCompile(`^[^\s,;]+@[^\s,;]+$`)
+	matrixPushPath                     = "/_matrix/push/v1/notify"
+	metricsPath                        = "/metrics"
+	apiHealthPath                      = "/v1/health"
+	apiVersionPath                     = "/v1/version"
+	apiConfigPath                      = "/v1/config"
+	apiStatsPath                       = "/v1/stats"
+	apiWebPushPath                     = "/v1/webpush"
+	apiAPNSPath                        = "/v1/apns"
+	apiUsersPath                       = "/v1/users"
+	apiUsersAccessPath                 = "/v1/users/access"
+	apiAccountPath                     = "/v1/account"
+	apiAccountLoginPath                = "/v1/account/login"
+	apiAccountTokenPath                = "/v1/account/token"
+	apiAccountPasswordPath             = "/v1/account/password"
+	apiAccountSettingsPath             = "/v1/account/settings"
+	apiAccountSubscriptionPath         = "/v1/account/subscription"
+	apiAccountReservationPath          = "/v1/account/reservation"
+	apiAccountEmailPath                = "/v1/account/email"
+	apiAccountEmailVerifyPath          = "/v1/account/email/verify"
+	apiAccountEmailPrimaryPath         = "/v1/account/email/primary"
+	apiAccountEmailResendPath          = "/v1/account/email/resend"
+	apiAccountPasswordResetRequestPath = "/v1/account/password/reset/request"
+	apiAccountPasswordResetPath        = "/v1/account/password/reset"
+	apiAccountReservationSingleRegex   = regexp.MustCompile(`/v1/account/reservation/([-_A-Za-z0-9]{1,64})$`)
+	staticRegex                        = regexp.MustCompile(`^/(static/.+|app.html|sw.js|sw.js.map)$`)
+	docsRegex                          = regexp.MustCompile(`^/docs(|/.*)$`)
+	fileRegex                          = regexp.MustCompile(`^/file/([-_A-Za-z0-9]{1,64})(?:\.[A-Za-z0-9]{1,16})?$`)
+	urlRegex                           = regexp.MustCompile(`^https?://`)
+	emailAddressRegex                  = regexp.MustCompile(`^[^\s,;]+@[^\s,;]+$`)
 
 	//go:embed site
 	webFs       embed.FS
@@ -157,8 +140,6 @@ var (
 )
 
 const (
-	firebaseControlTopic     = "~control"                // See Android if changed
-	firebasePollTopic        = "~poll"                   // See iOS if changed (DISABLED for now)
 	emptyMessageBody         = "triggered"               // Used when a message body is empty
 	newMessageBody           = "New message"             // Used in poll requests as generic message
 	defaultAttachmentMessage = "You received a file: %s" // Used if message body is empty, and there is an attachment
@@ -177,8 +158,7 @@ const (
 	wsPongWait   = 15 * time.Second
 )
 
-// New instantiates a new Server. It creates the cache and adds a Firebase
-// subscriber (if configured).
+// New instantiates a new Server and opens its stores.
 func New(conf *Config) (*Server, error) {
 	var sender mail.Sender
 	if conf.SMTPSenderAddr != "" {
@@ -189,10 +169,6 @@ func New(conf *Config) (*Server, error) {
 			SMTPPass: conf.SMTPSenderPass,
 			From:     conf.SMTPSenderFrom,
 		})
-	}
-	var stripe stripeAPI
-	if payments.Available && conf.StripeSecretKey != "" {
-		stripe = newStripeAPI()
 	}
 	// Open shared PostgreSQL connection pool if configured
 	var pool *db.DB
@@ -251,16 +227,6 @@ func New(conf *Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	twilioClient := twilio.NewClient(&twilio.Config{
-		Account:       conf.TwilioAccount,
-		AuthToken:     conf.TwilioAuthToken,
-		PhoneNumber:   conf.TwilioPhoneNumber,
-		CallsBaseURL:  conf.TwilioCallsBaseURL,
-		VerifyBaseURL: conf.TwilioVerifyBaseURL,
-		VerifyService: conf.TwilioVerifyService,
-		CallFormat:    conf.TwilioCallFormat,
-		BuildVersion:  conf.BuildVersion,
-	})
 	var userManager *user.Manager
 	if conf.AuthFile != "" || pool != nil {
 		authConfig := &user.Config{
@@ -286,20 +252,6 @@ func New(conf *Config) (*Server, error) {
 			return nil, err
 		}
 	}
-	var firebaseClient *firebaseClient
-	if conf.FirebaseKeyFile != "" {
-		sender, err := newFirebaseSender(conf.FirebaseKeyFile)
-		if err != nil {
-			return nil, err
-		}
-		// This awkward logic is required because Go is weird about nil types and interfaces.
-		// See issue #641, and https://go.dev/play/p/uur1flrv1t3 for an example
-		var auther user.Auther
-		if userManager != nil {
-			auther = userManager
-		}
-		firebaseClient = newFirebaseClient(sender, auther)
-	}
 	var banner *ban.Service
 	if conf.BanFile != "" {
 		banner = ban.NewService(&ban.Config{
@@ -319,8 +271,6 @@ func New(conf *Config) (*Server, error) {
 		apnsStore:       apnsStore,
 		apnsSender:      apnsSender,
 		attachment:      attachmentStore,
-		firebaseClient:  firebaseClient,
-		twilio:          twilioClient,
 		mailer:          sender,
 		ban:             banner,
 		topics:          topics,
@@ -328,9 +278,7 @@ func New(conf *Config) (*Server, error) {
 		messages:        messages,
 		messagesHistory: []int64{messages},
 		visitors:        make(map[string]*visitor),
-		stripe:          stripe,
 	}
-	s.priceCache = util.NewLookupCache(s.fetchStripePrices, conf.StripePriceCacheDuration)
 	return s, nil
 }
 
@@ -451,7 +399,6 @@ func (s *Server) Run() error {
 	go s.runManager()
 	go s.runStatsResetter()
 	go s.runDelayedSender()
-	go s.runFirebaseKeepaliver()
 
 	return <-errChan
 }
@@ -532,7 +479,6 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 		httpErr = errHTTPInternalError
 	}
 	metrics.HTTPRequests.WithLabelValues(strconv.Itoa(httpErr.HTTPCode), strconv.Itoa(httpErr.Code), r.Method).Inc()
-	isRateLimiting := util.Contains(rateLimitingErrorCodes, httpErr.HTTPCode)
 	isNormalError := strings.Contains(err.Error(), "i/o timeout") || util.Contains(normalErrorCodes, httpErr.HTTPCode)
 	ev := logvr(v, r).Err(err)
 	if websocket.IsWebSocketUpgrade(r) {
@@ -555,12 +501,6 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 		ev.Debug("Connection closed with HTTP %d (ntfy error %d)", httpErr.HTTPCode, httpErr.Code)
 	} else {
 		ev.Info("Connection closed with HTTP %d (ntfy error %d)", httpErr.HTTPCode, httpErr.Code)
-	}
-	if isRateLimiting && s.config.StripeSecretKey != "" {
-		u := v.User()
-		if u == nil || u.Tier == nil {
-			httpErr = httpErr.Wrap("increase your limits with a paid plan, see %s", s.config.BaseURL)
-		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", s.config.AccessControlAllowOrigin) // CORS, allow cross-origin requests
@@ -628,24 +568,6 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureUser(s.withAccountSync(s.handleAccountReservationAdd))(w, r, v)
 	} else if r.Method == http.MethodDelete && apiAccountReservationSingleRegex.MatchString(r.URL.Path) {
 		return s.ensureUser(s.withAccountSync(s.handleAccountReservationDelete))(w, r, v)
-	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountBillingSubscriptionPath {
-		return s.ensurePaymentsEnabled(s.ensureUser(s.handleAccountBillingSubscriptionCreate))(w, r, v) // Account sync via incoming Stripe webhook
-	} else if r.Method == http.MethodGet && apiAccountBillingSubscriptionCheckoutSuccessRegex.MatchString(r.URL.Path) {
-		return s.ensurePaymentsEnabled(s.ensureUserManager(s.handleAccountBillingSubscriptionCreateSuccess))(w, r, v) // No user context!
-	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountBillingSubscriptionPath {
-		return s.ensurePaymentsEnabled(s.ensureStripeCustomer(s.handleAccountBillingSubscriptionUpdate))(w, r, v) // Account sync via incoming Stripe webhook
-	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountBillingSubscriptionPath {
-		return s.ensurePaymentsEnabled(s.ensureStripeCustomer(s.handleAccountBillingSubscriptionDelete))(w, r, v) // Account sync via incoming Stripe webhook
-	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountBillingPortalPath {
-		return s.ensurePaymentsEnabled(s.ensureStripeCustomer(s.handleAccountBillingPortalSessionCreate))(w, r, v)
-	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountBillingWebhookPath {
-		return s.ensurePaymentsEnabled(s.ensureUserManager(s.handleAccountBillingWebhook))(w, r, v) // This request comes from Stripe!
-	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountPhoneVerifyPath {
-		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberVerify)))(w, r, v)
-	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountPhonePath {
-		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberAdd)))(w, r, v)
-	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountPhonePath {
-		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberDelete)))(w, r, v)
 	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountEmailPath {
 		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailAdd)))(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountEmailVerifyPath {
@@ -670,8 +592,6 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureAPNSEnabled(s.limitRequests(s.handleAPNSDeviceDelete))(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == apiStatsPath {
 		return s.handleStats(w, r, v)
-	} else if r.Method == http.MethodGet && r.URL.Path == apiTiersPath {
-		return s.ensurePaymentsEnabled(s.handleBillingTiersGet)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == matrixPushPath {
 		return s.handleMatrixDiscovery(w)
 	} else if r.Method == http.MethodGet && r.URL.Path == metricsPath && s.metricsHandler != nil {
@@ -854,17 +774,8 @@ func (s *Server) dispatch(v *visitor, t *topic, m *model.Message, opts dispatchO
 		}
 	}
 	// Fire the requested side-effect targets
-	if s.firebaseClient != nil && opts.firebase {
-		go s.sendToFirebase(v, m)
-	}
 	if s.mailer != nil && opts.email != "" {
 		go s.sendEmail(v, m, opts.email)
-	}
-	if s.config.TwilioAccount != "" && opts.call != "" {
-		go s.callPhone(v, m, opts.call)
-	}
-	if s.config.UpstreamBaseURL != "" && opts.upstream {
-		go s.forwardPollRequest(v, m)
 	}
 	if s.config.WebPushPublicKey != "" && opts.webPush {
 		go s.publishToWebPushEndpoints(v, m)
@@ -890,7 +801,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		return nil, err
 	}
 	m := model.NewDefaultMessage(t.ID, "")
-	cache, firebase, email, call, template, unifiedpush, priorityStr, e := s.parsePublishParams(r, m)
+	cache, email, template, unifiedpush, priorityStr, e := s.parsePublishParams(r, m)
 	if e != nil {
 		return nil, e.With(t)
 	}
@@ -910,15 +821,6 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 			return nil, httpErr.With(t)
 		} else if !vrate.EmailAllowed() {
 			return nil, errHTTPTooManyRequestsLimitEmails.With(t)
-		}
-	}
-	if call != "" {
-		var httpErr *errHTTP
-		call, httpErr = s.convertPhoneNumber(v.User(), call)
-		if httpErr != nil {
-			return nil, httpErr.With(t)
-		} else if !vrate.CallAllowed() {
-			return nil, errHTTPTooManyRequestsLimitCalls.With(t)
 		}
 	}
 	if m.PollID != "" {
@@ -942,10 +844,8 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		With(t).
 		Fields(log.Context{
 			"message_delayed":     delayed,
-			"message_firebase":    firebase,
 			"message_unifiedpush": unifiedpush,
 			"message_email":       email,
-			"message_call":        call,
 		})
 	if ev.IsTrace() {
 		ev.Field("message_body", util.MaybeMarshalJSON(m)).Trace("Received message")
@@ -954,12 +854,9 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 	}
 	if !delayed {
 		err := s.dispatch(v, t, m, dispatchOpts{
-			firebase: firebase,
-			email:    email,
-			call:     call,
-			upstream: !unifiedpush, // UP messages are not sent to upstream
-			webPush:  true,
-			apns:     true,
+			email:   email,
+			webPush: true,
+			apns:    true,
 		})
 		if err != nil {
 			return nil, err
@@ -1062,8 +959,7 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 	m.Sender = v.IP()
 	m.User = v.MaybeUserID()
 	m.Expires = time.Unix(m.Time, 0).Add(v.Limits().MessageExpiryDuration).Unix()
-	// Publish to subscribers, Firebase (for Android clients), and web push endpoints
-	if err := s.dispatch(v, t, m, dispatchOpts{firebase: true, webPush: true, apns: true}); err != nil {
+	if err := s.dispatch(v, t, m, dispatchOpts{webPush: true, apns: true}); err != nil {
 		return err
 	}
 	if event == model.MessageDeleteEvent {
@@ -1090,20 +986,6 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 	return s.writeJSON(w, m.ForJSON())
 }
 
-func (s *Server) sendToFirebase(v *visitor, m *model.Message) {
-	logvm(v, m).Tag(tagFirebase).Debug("Publishing to Firebase")
-	if err := s.firebaseClient.Send(v, m); err != nil {
-		metrics.FirebasePublishedFailure.Inc()
-		if errors.Is(err, errFirebaseTemporarilyBanned) {
-			logvm(v, m).Tag(tagFirebase).Err(err).Debug("Unable to publish to Firebase: %v", err.Error())
-		} else {
-			logvm(v, m).Tag(tagFirebase).Err(err).Warn("Unable to publish to Firebase: %v", err.Error())
-		}
-		return
-	}
-	metrics.FirebasePublishedSuccess.Inc()
-}
-
 func (s *Server) sendEmail(v *visitor, m *model.Message, email string) {
 	logvm(v, m).Tag(tagEmail).Field("email", email).Info("Sending email to %s", email)
 	if err := s.mailer.SendNotification(email, m, v.ip.String()); err != nil {
@@ -1114,43 +996,11 @@ func (s *Server) sendEmail(v *visitor, m *model.Message, email string) {
 	metrics.EmailsPublishedSuccess.Inc()
 }
 
-func (s *Server) forwardPollRequest(v *visitor, m *model.Message) {
-	topicURL := fmt.Sprintf("%s/%s", s.config.BaseURL, m.Topic)
-	topicHash := fmt.Sprintf("%x", sha256.Sum256([]byte(topicURL)))
-	forwardURL := fmt.Sprintf("%s/%s", s.config.UpstreamBaseURL, topicHash)
-	logvm(v, m).Debug("Publishing poll request to %s", forwardURL)
-	req, err := http.NewRequest("POST", forwardURL, strings.NewReader(""))
-	if err != nil {
-		logvm(v, m).Err(err).Warn("Unable to publish poll request")
-		return
-	}
-	req.Header.Set("User-Agent", "ntfy/"+s.config.BuildVersion)
-	req.Header.Set("X-Poll-ID", m.ID)
-	if s.config.UpstreamAccessToken != "" {
-		req.Header.Set("Authorization", util.BearerAuth(s.config.UpstreamAccessToken))
-	}
-	var httpClient = &http.Client{
-		Timeout: time.Second * 10,
-	}
-	response, err := httpClient.Do(req)
-	if err != nil {
-		logvm(v, m).Err(err).Warn("Unable to publish poll request")
-		return
-	} else if response.StatusCode != http.StatusOK {
-		if response.StatusCode == http.StatusTooManyRequests {
-			logvm(v, m).Err(err).Warn("Unable to publish poll request, the upstream server %s responded with HTTP %s; you may solve this by sending fewer daily messages, or by configuring upstream-access-token (assuming you have an account with higher rate limits) ", s.config.UpstreamBaseURL, response.Status)
-		} else {
-			logvm(v, m).Err(err).Warn("Unable to publish poll request, the upstream server %s responded with HTTP %s", s.config.UpstreamBaseURL, response.Status)
-		}
-		return
-	}
-}
-
-func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bool, firebase bool, email, call string, template templateMode, unifiedpush bool, priorityStr string, err *errHTTP) {
+func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bool, email string, template templateMode, unifiedpush bool, priorityStr string, err *errHTTP) {
 	if r.Method != http.MethodGet && updatePathRegex.MatchString(r.URL.Path) {
 		pathSequenceID, err := s.sequenceIDFromPath(r.URL.Path)
 		if err != nil {
-			return false, false, "", "", "", false, "", err
+			return false, "", "", false, "", err
 		}
 		m.SequenceID = pathSequenceID
 	} else {
@@ -1159,17 +1009,16 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 			if sequenceIDRegex.MatchString(sequenceID) {
 				m.SequenceID = sequenceID
 			} else {
-				return false, false, "", "", "", false, "", errHTTPBadRequestSequenceIDInvalid
+				return false, "", "", false, "", errHTTPBadRequestSequenceIDInvalid
 			}
 		} else {
 			m.SequenceID = m.ID
 		}
 	}
 	cache = readBoolParam(r, true, "x-cache", "cache")
-	firebase = readBoolParam(r, true, "x-firebase", "firebase")
 	m.Title = readParam(r, "x-title", "title", "t")
 	if len(m.Title) > messageTitleSizeLimit {
-		return false, false, "", "", "", false, "", errHTTPBadRequestTitleTooLarge
+		return false, "", "", false, "", errHTTPBadRequestTitleTooLarge
 	}
 	m.Click = readParam(r, "x-click", "click")
 	icon := readParam(r, "x-icon", "icon")
@@ -1183,7 +1032,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 	}
 	if attach != "" {
 		if !urlRegex.MatchString(attach) {
-			return false, false, "", "", "", false, "", errHTTPBadRequestAttachmentURLInvalid
+			return false, "", "", false, "", errHTTPBadRequestAttachmentURLInvalid
 		}
 		m.Attachment.URL = attach
 		if m.Attachment.Name == "" {
@@ -1201,22 +1050,19 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 	}
 	if icon != "" {
 		if !urlRegex.MatchString(icon) {
-			return false, false, "", "", "", false, "", errHTTPBadRequestIconURLInvalid
+			return false, "", "", false, "", errHTTPBadRequestIconURLInvalid
 		}
 		m.Icon = icon
 	}
 	email = readParam(r, "x-email", "x-e-mail", "email", "e-mail", "mail", "e")
 	if email != "" && !emailAddressRegex.MatchString(email) && !toBool(email) {
-		return false, false, "", "", "", false, "", errHTTPBadRequestEmailAddressInvalid
+		return false, "", "", false, "", errHTTPBadRequestEmailAddressInvalid
 	}
 	if s.mailer == nil && email != "" {
-		return false, false, "", "", "", false, "", errHTTPBadRequestEmailDisabled
+		return false, "", "", false, "", errHTTPBadRequestEmailDisabled
 	}
-	call = readParam(r, "x-call", "call")
-	if call != "" && (s.config.TwilioAccount == "" || s.userManager == nil) {
-		return false, false, "", "", "", false, "", errHTTPBadRequestPhoneCallsDisabled
-	} else if call != "" && !isBoolValue(call) && !phoneNumberRegex.MatchString(call) {
-		return false, false, "", "", "", false, "", errHTTPBadRequestPhoneNumberInvalid
+	if readParam(r, "x-call", "call") != "" {
+		return false, "", "", false, "", errHTTPBadRequestPhoneCallsDisabled
 	}
 	template = templateMode(readParam(r, "x-template", "template", "tpl"))
 	messageStr := readParam(r, "x-message", "message", "m")
@@ -1232,7 +1078,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 	if !template.Enabled() {
 		m.Priority, e = util.ParsePriority(priorityStr)
 		if e != nil {
-			return false, false, "", "", "", false, "", errHTTPBadRequestPriorityInvalid
+			return false, "", "", false, "", errHTTPBadRequestPriorityInvalid
 		}
 		priorityStr = "" // Clear since it's already parsed
 	}
@@ -1243,26 +1089,23 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 		tagsSize += len(tag)
 	}
 	if tagsSize > messageTagsSizeLimit {
-		return false, false, "", "", "", false, "", errHTTPBadRequestTagsTooLarge
+		return false, "", "", false, "", errHTTPBadRequestTagsTooLarge
 	}
 	delayStr := readParam(r, "x-delay", "delay", "x-at", "at", "x-in", "in")
 	if delayStr != "" {
 		if !cache {
-			return false, false, "", "", "", false, "", errHTTPBadRequestDelayNoCache
+			return false, "", "", false, "", errHTTPBadRequestDelayNoCache
 		}
 		if email != "" {
-			return false, false, "", "", "", false, "", errHTTPBadRequestDelayNoEmail // we cannot store the email address (yet)
-		}
-		if call != "" {
-			return false, false, "", "", "", false, "", errHTTPBadRequestDelayNoCall // we cannot store the phone number (yet)
+			return false, "", "", false, "", errHTTPBadRequestDelayNoEmail // we cannot store the email address (yet)
 		}
 		delay, err := util.ParseFutureTime(delayStr, time.Now())
 		if err != nil {
-			return false, false, "", "", "", false, "", errHTTPBadRequestDelayCannotParse
+			return false, "", "", false, "", errHTTPBadRequestDelayCannotParse
 		} else if delay.Unix() < time.Now().Add(s.config.MessageDelayMin).Unix() {
-			return false, false, "", "", "", false, "", errHTTPBadRequestDelayTooSmall
+			return false, "", "", false, "", errHTTPBadRequestDelayTooSmall
 		} else if delay.Unix() > time.Now().Add(s.config.MessageDelayMax).Unix() {
-			return false, false, "", "", "", false, "", errHTTPBadRequestDelayTooLarge
+			return false, "", "", false, "", errHTTPBadRequestDelayTooLarge
 		}
 		m.Time = delay.Unix()
 	}
@@ -1270,7 +1113,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 	if actionsStr != "" {
 		m.Actions, e = action.Parse(actionsStr)
 		if e != nil {
-			return false, false, "", "", "", false, "", errHTTPBadRequestActionsInvalid.Wrap("%s", e.Error())
+			return false, "", "", false, "", errHTTPBadRequestActionsInvalid.Wrap("%s", e.Error())
 		}
 	}
 	contentType, markdown := readParam(r, "content-type", "content_type"), readBoolParam(r, false, "x-markdown", "markdown", "md")
@@ -1280,7 +1123,6 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 	unifiedpush = readBoolParam(r, false, "x-unifiedpush", "unifiedpush", "up") // see GET too!
 	contentEncoding := readParam(r, "content-encoding")
 	if unifiedpush || contentEncoding == "aes128gcm" {
-		firebase = false
 		unifiedpush = true
 	}
 	m.PollID = readParam(r, "x-poll-id", "poll-id")
@@ -1289,7 +1131,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 		cache = false
 		email = ""
 	}
-	return cache, firebase, email, call, template, unifiedpush, priorityStr, nil
+	return cache, email, template, unifiedpush, priorityStr, nil
 }
 
 // handlePublishBody consumes the PUT/POST body and decides whether the body is an attachment or the message.
@@ -1984,29 +1826,6 @@ func (s *Server) resetStats() {
 	}
 }
 
-func (s *Server) runFirebaseKeepaliver() {
-	if s.firebaseClient == nil {
-		return
-	}
-	v := newVisitor(s.config, s.messageCache, s.userManager, netip.IPv4Unspecified(), nil) // Background process, not a real visitor, uses IP 0.0.0.0
-	for {
-		select {
-		case <-time.After(s.config.FirebaseKeepaliveInterval):
-			s.sendToFirebase(v, model.NewKeepaliveMessage(firebaseControlTopic))
-		/*
-			FIXME: Disable iOS polling entirely for now due to thundering herd problem (see #677)
-			       To solve this, we'd have to shard the iOS poll topics to spread out the polling evenly.
-			       Given that it's not really necessary to poll, turning it off for now should not have any impact.
-
-			case <-time.After(s.config.FirebasePollInterval):
-				s.sendToFirebase(v, model.NewKeepaliveMessage(firebasePollTopic))
-		*/
-		case <-s.closeChan:
-			return
-		}
-	}
-}
-
 func (s *Server) runDelayedSender() {
 	for {
 		select {
@@ -2048,13 +1867,11 @@ func (s *Server) sendDelayedMessage(v *visitor, m *model.Message) error {
 	t := s.topics[m.Topic] // May be nil if there are no local subscribers; dispatch handles that
 	s.mu.RUnlock()
 	// We do not rate-limit messages here, since we've rate limited them in the PUT/POST handler.
-	// Firebase subscribers may not show up in the topics map, so side effects fire regardless.
+	// Push subscribers (web push, APNs) do not show up in the topics map, so side effects fire regardless.
 	err := s.dispatch(v, t, m, dispatchOpts{
-		firebase: true,
-		upstream: true,
-		webPush:  true,
-		apns:     true,
-		async:    true,
+		webPush: true,
+		apns:    true,
+		async:   true,
 	})
 	if err != nil {
 		return err
@@ -2123,9 +1940,6 @@ func (s *Server) transformBodyJSON(next handleFunc) handleFunc {
 		}
 		if m.Cache != "" {
 			r.Header.Set("X-Cache", m.Cache)
-		}
-		if m.Firebase != "" {
-			r.Header.Set("X-Firebase", m.Firebase)
 		}
 		if m.SequenceID != "" {
 			r.Header.Set("X-Sequence-ID", m.SequenceID)
