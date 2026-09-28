@@ -138,6 +138,16 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 				}
 			}
 		}
+		grants, err := s.userManager.Grants(u.Name)
+		if err != nil {
+			return err
+		}
+		for _, g := range grants {
+			response.Access = append(response.Access, &apiUserGrantResponse{
+				Topic:      g.TopicPattern,
+				Permission: g.Permission.String(),
+			})
+		}
 		tokens, err := s.userManager.Tokens(u.ID)
 		if err != nil {
 			return err

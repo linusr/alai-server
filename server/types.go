@@ -311,11 +311,16 @@ type apiAccountResponse struct {
 	Notification  *user.NotificationPrefs    `json:"notification,omitempty"`
 	Subscriptions []*user.Subscription       `json:"subscriptions,omitempty"`
 	Reservations  []*apiAccountReservation   `json:"reservations,omitempty"`
+	Access        []*apiUserGrantResponse    `json:"access,omitempty"`
 	Tokens        []*apiAccountTokenResponse `json:"tokens,omitempty"`
 	Emails        []*apiAccountEmailInfo     `json:"emails,omitempty"`
 	Tier          *apiAccountTier            `json:"tier,omitempty"`
 	Limits        *apiAccountLimits          `json:"limits,omitempty"`
 	Stats         *apiAccountStats           `json:"stats,omitempty"`
+}
+
+type apiTopicsResponse struct {
+	Topics []string `json:"topics"`
 }
 
 type apiAccountReservationRequest struct {

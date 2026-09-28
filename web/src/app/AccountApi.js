@@ -20,6 +20,7 @@ import {
   accountUrl,
   maybeWithBearerAuth,
   tiersUrl,
+  topicsUrl,
   withBasicAuth,
   withBearerAuth,
 } from "./utils";
@@ -99,6 +100,18 @@ class AccountApi {
       this.listener(account);
     }
     return account;
+  }
+
+  /** Topics with cached messages on this server. Admin-only; resolves to an empty list for everyone else. */
+  async activeTopics() {
+    const response = await fetch(topicsUrl(config.base_url), {
+      headers: maybeWithBearerAuth({}, session.token()),
+    });
+    if (!response.ok) {
+      return [];
+    }
+    const { topics } = await response.json();
+    return topics ?? [];
   }
 
   async delete(password) {
