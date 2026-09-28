@@ -1,7 +1,7 @@
 import * as React from "react";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Shuffle } from "lucide-react";
+import { Lock, Plus, Shuffle } from "lucide-react";
 import api from "../app/Api";
 import { randomAlphanumericString, shortUrl, topicUrl, validTopic } from "../app/utils";
 import userManager from "../app/UserManager";
@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogFooter } from "./ui/Dialog";
 import { Field, Input } from "./ui/Field";
 import Button from "./ui/Button";
 import Switch from "./ui/Switch";
+import TopicAvatar from "./ui/TopicAvatar";
 
 export const subscribeTopic = async (baseUrl, topic, opts) => {
   const subscription = await subscriptionManager.upsert(baseUrl, topic, opts);
@@ -41,9 +42,9 @@ const SubscribeDialog = (props) => {
   const [topic, setTopic] = useState("");
   const [showLoginPage, setShowLoginPage] = useState(false);
 
-  const handleSuccess = async () => {
-    console.log(`[SubscribeDialog] Subscribing to topic ${topic}`);
-    const subscription = await subscribeTopic(config.base_url, topic, {});
+  const handleSuccess = async (name = topic) => {
+    console.log(`[SubscribeDialog] Subscribing to topic ${name}`);
+    const subscription = await subscribeTopic(config.base_url, name, {});
     poller.pollInBackground(subscription); // Dangle!
     props.onSuccess(subscription);
   };
@@ -55,7 +56,7 @@ const SubscribeDialog = (props) => {
         description={showLoginPage ? t("subscribe_dialog_login_description") : t("subscribe_dialog_subscribe_description")}
       >
         {showLoginPage ? (
-          <LoginPage topic={topic} onBack={() => setShowLoginPage(false)} onSuccess={handleSuccess} />
+          <LoginPage topic={topic} onBack={() => setShowLoginPage(false)} onSuccess={() => handleSuccess()} />
         ) : (
           <SubscribePage
             topic={topic}
@@ -85,17 +86,13 @@ const SubscribePage = (props) => {
     session.exists() && (account?.role === Role.ADMIN || (account?.role === Role.USER && (account?.stats.reservations_remaining || 0) > 0));
   const subscribeButtonEnabled = validTopic(topic) && !existingTopicUrls.includes(topicUrl(baseUrl, topic));
 
-  const handleSubscribe = async (ev) => {
-    ev.preventDefault();
-    if (!subscribeButtonEnabled) {
-      return;
-    }
+  const subscribe = async (name) => {
     const user = await userManager.get(baseUrl); // May be undefined
     const username = user ? user.username : t("subscribe_dialog_error_user_anonymous");
 
-    const success = await api.topicAuth(baseUrl, topic, user);
+    const success = await api.topicAuth(baseUrl, name, user);
     if (!success) {
-      console.log(`[SubscribeDialog] Login to ${topicUrl(baseUrl, topic)} failed for user ${username}`);
+      console.log(`[SubscribeDialog] Login to ${topicUrl(baseUrl, name)} failed for user ${username}`);
       if (user) {
         setError(t("subscribe_dialog_error_user_not_authorized", { username }));
         return;
@@ -105,9 +102,9 @@ const SubscribePage = (props) => {
     }
 
     if (session.exists() && reserveTopicVisible) {
-      console.log(`[SubscribeDialog] Reserving topic ${topic} with everyone access ${everyone}`);
+      console.log(`[SubscribeDialog] Reserving topic ${name} with everyone access ${everyone}`);
       try {
-        await accountApi.upsertReservation(topic, everyone);
+        await accountApi.upsertReservation(name, everyone);
       } catch (e) {
         console.log(`[SubscribeDialog] Error reserving topic`, e);
         if (e instanceof UnauthorizedError) {
@@ -119,8 +116,20 @@ const SubscribePage = (props) => {
       }
     }
 
-    console.log(`[SubscribeDialog] Successful login to ${topicUrl(baseUrl, topic)} for user ${username}`);
-    props.onSuccess();
+    console.log(`[SubscribeDialog] Successful login to ${topicUrl(baseUrl, name)} for user ${username}`);
+    props.onSuccess(name);
+  };
+
+  const handleSubscribe = async (ev) => {
+    ev.preventDefault();
+    if (subscribeButtonEnabled) {
+      await subscribe(topic);
+    }
+  };
+
+  const handlePick = async (name) => {
+    props.setTopic(name);
+    await subscribe(name);
   };
 
   return (
@@ -144,6 +153,8 @@ const SubscribePage = (props) => {
           <span className="max-sm:sr-only">{t("subscribe_dialog_subscribe_button_generate_topic_name")}</span>
         </Button>
       </div>
+
+      <TopicSuggestions account={account} filter={topic} subscribedTopics={existingTopicUrls} onPick={handlePick} />
 
       {showReserveTopicCheckbox && (
         <div className="flex flex-col gap-3">
@@ -171,6 +182,90 @@ const SubscribePage = (props) => {
         </Button>
       </DialogFooter>
     </form>
+  );
+};
+
+const permissionLabels = {
+  "read-only": "subscribe_dialog_permission_read_only",
+  "write-only": "subscribe_dialog_permission_write_only",
+  "read-write": "subscribe_dialog_permission_read_write",
+};
+
+/** Topics the account already knows about, grouped by where they come from; a topic appears in its first group only. */
+const TopicSuggestions = ({ account, filter, subscribedTopics, onPick }) => {
+  const { t } = useTranslation();
+  const [activeTopics, setActiveTopics] = useState([]);
+  const isAdmin = account?.role === Role.ADMIN;
+
+  useEffect(() => {
+    if (isAdmin) {
+      accountApi.activeTopics().then(setActiveTopics);
+    }
+  }, [isAdmin]);
+
+  const groups = useMemo(() => {
+    const seen = new Set(subscribedTopics);
+    const query = filter.trim().toLowerCase();
+    const take = (items) =>
+      items.filter((item) => {
+        const url = topicUrl(config.base_url, item.topic);
+        if (seen.has(url) || item.topic === account?.sync_topic || item.topic.includes("*")) {
+          return false;
+        }
+        seen.add(url);
+        return !query || item.topic.toLowerCase().includes(query);
+      });
+    return [
+      {
+        title: t("subscribe_dialog_topics_reserved"),
+        items: take((account?.reservations ?? []).map((r) => ({ topic: r.topic, reserved: true }))),
+      },
+      {
+        title: t("subscribe_dialog_topics_access"),
+        items: take((account?.access ?? []).map((g) => ({ topic: g.topic, detail: t(permissionLabels[g.permission] ?? g.permission) }))),
+      },
+      {
+        title: t("subscribe_dialog_topics_synced"),
+        items: take(
+          (account?.subscriptions ?? [])
+            .filter((sub) => sub.base_url === config.base_url)
+            .map((sub) => ({ topic: sub.topic, detail: sub.display_name })),
+        ),
+      },
+      { title: t("subscribe_dialog_topics_active"), items: take(activeTopics.map((name) => ({ topic: name }))) },
+    ].filter((group) => group.items.length > 0);
+  }, [account, activeTopics, filter, subscribedTopics]);
+
+  if (groups.length === 0) {
+    return null;
+  }
+  return (
+    <div className="-mx-2 max-h-72 overflow-y-auto">
+      {groups.map((group) => (
+        <div key={group.title} className="mb-2 last:mb-0">
+          <p className="px-2 pb-1 pt-1 text-xs font-medium text-muted">{group.title}</p>
+          {group.items.map((item) => (
+            <button
+              key={item.topic}
+              type="button"
+              onClick={() => onPick(item.topic)}
+              className="group flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none"
+            >
+              <TopicAvatar name={item.topic} size={28} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{item.topic}</span>
+                {item.detail && <span className="block truncate text-xs text-muted">{item.detail}</span>}
+              </span>
+              {item.reserved && <Lock className="size-3.5 shrink-0 text-muted" aria-hidden />}
+              <Plus
+                className="size-4 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                aria-hidden
+              />
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 };
 

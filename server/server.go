@@ -108,6 +108,7 @@ var (
 	apiAPNSPath                        = "/v1/apns"
 	apiUsersPath                       = "/v1/users"
 	apiUsersAccessPath                 = "/v1/users/access"
+	apiTopicsPath                      = "/v1/topics"
 	apiAccountPath                     = "/v1/account"
 	apiAccountLoginPath                = "/v1/account/login"
 	apiAccountTokenPath                = "/v1/account/token"
@@ -530,6 +531,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureWebPushEnabled(s.handleWebManifest)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == apiUsersPath {
 		return s.ensureAdmin(s.handleUsersGet)(w, r, v)
+	} else if r.Method == http.MethodGet && r.URL.Path == apiTopicsPath {
+		return s.ensureAdmin(s.handleTopicsGet)(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiUsersPath {
 		return s.ensureAdmin(s.handleUsersAdd)(w, r, v)
 	} else if r.Method == http.MethodPut && r.URL.Path == apiUsersPath {

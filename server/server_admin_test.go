@@ -459,3 +459,56 @@ func TestAccess_AllowReset_KillConnection(t *testing.T) {
 		})
 	})
 }
+
+func TestTopics_Admin(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
+		c.AuthDefault = user.PermissionReadWrite
+		s := newTestServer(t, c)
+		defer s.closeDatabases()
+
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
+		require.Equal(t, 200, request(t, s, "PUT", "/zebra", "hi", nil).Code)
+		require.Equal(t, 200, request(t, s, "PUT", "/alpha", "hi", nil).Code)
+
+		rr := request(t, s, "GET", "/v1/topics", "", map[string]string{
+			"Authorization": util.BasicAuth("phil", "phil"),
+		})
+		require.Equal(t, 200, rr.Code)
+		var topics apiTopicsResponse
+		require.Nil(t, json.NewDecoder(rr.Body).Decode(&topics))
+		require.Equal(t, []string{"alpha", "zebra"}, topics.Topics)
+
+		rr = request(t, s, "GET", "/v1/topics", "", map[string]string{
+			"Authorization": util.BasicAuth("ben", "ben"),
+		})
+		require.Equal(t, 401, rr.Code)
+
+		rr = request(t, s, "GET", "/v1/topics", "", nil)
+		require.Equal(t, 401, rr.Code)
+	})
+}
+
+func TestAccount_Get_Access(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
+		defer s.closeDatabases()
+
+		require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
+		require.Nil(t, s.userManager.AllowAccess("ben", "garage", user.PermissionRead))
+		require.Nil(t, s.userManager.AllowAccess("ben", "backups_*", user.PermissionReadWrite))
+
+		rr := request(t, s, "GET", "/v1/account", "", map[string]string{
+			"Authorization": util.BasicAuth("ben", "ben"),
+		})
+		require.Equal(t, 200, rr.Code)
+		var account apiAccountResponse
+		require.Nil(t, json.NewDecoder(rr.Body).Decode(&account))
+		access := map[string]string{}
+		for _, g := range account.Access {
+			access[g.Topic] = g.Permission
+		}
+		require.Equal(t, map[string]string{"garage": "read-only", "backups_*": "read-write"}, access)
+	})
+}

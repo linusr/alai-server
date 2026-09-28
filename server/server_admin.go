@@ -2,8 +2,10 @@ package server
 
 import (
 	"errors"
-	"heckel.io/ntfy/v2/user"
 	"net/http"
+	"sort"
+
+	"heckel.io/ntfy/v2/user"
 )
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -200,4 +202,15 @@ func (s *Server) killUserSubscriber(u *user.User, topicPattern string) error {
 		t.CancelSubscriberUser(u.ID)
 	}
 	return nil
+}
+
+// handleTopicsGet lists topics that currently have messages in the cache. It is admin-only because
+// topic names double as secrets on servers that allow anonymous access.
+func (s *Server) handleTopicsGet(w http.ResponseWriter, _ *http.Request, _ *visitor) error {
+	topics, err := s.messageCache.Topics()
+	if err != nil {
+		return err
+	}
+	sort.Strings(topics)
+	return s.writeJSON(w, &apiTopicsResponse{Topics: topics})
 }
