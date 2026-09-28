@@ -9,7 +9,7 @@ After=network-online.target
 
 [Container]
 ContainerName=alai
-Image=ghcr.io/linusr/ntfy:main
+Image=ghcr.io/linusr/alai-server:main
 # Pulls newer images of the same tag when podman-auto-update.timer runs
 AutoUpdate=registry
 # The container always listens on :80, whatever server.yml says; the host side is set by PublishPort

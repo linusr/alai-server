@@ -88,7 +88,7 @@ class ErrorBoundaryImpl extends React.Component {
     }
     return this.renderPage(
       t("error_boundary_title"),
-      <Trans i18nKey="error_boundary_description" components={linkComponents("https://github.com/linusr/ntfy/issues")} />,
+      <Trans i18nKey="error_boundary_description" components={linkComponents("https://github.com/linusr/alai-server/issues")} />,
       <>
         <div className="mt-6 flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => copyToClipboard(`${this.state.stack}\n`)}>
