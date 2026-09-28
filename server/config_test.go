@@ -29,3 +29,7 @@ func TestConfig_HashExcludesSecrets(t *testing.T) {
 	conf3.BaseURL = "https://ntfy.example.com"
 	assert.NotEqual(t, conf1.Hash(), conf3.Hash())
 }
+
+func TestConfig_New_DenyAllByDefault(t *testing.T) {
+	assert.Equal(t, user.PermissionDenyAll, server.NewConfig().AuthDefault)
+}
