@@ -11,12 +11,9 @@ var config = {
   enable_login: true,
   require_login: false,
   enable_signup: true,
-  enable_payments: false,
   enable_reservations: true,
   enable_emails: true,
-  enable_calls: true,
   enable_web_push: true,
-  billing_contact: "",
   web_push_public_key: "",
   disallowed_topics: ["docs", "static", "file", "app", "account", "settings", "signup", "login", "v1"],
   config_hash: "dev", // Placeholder for development; actual value is generated server-side

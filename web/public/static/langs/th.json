@@ -51,6 +51,5 @@
     "message_bar_show_dialog": "แสดงกล่องโต้ตอบการเผยแพร่",
     "nav_button_subscribe": "สมัครรับหัวข้อ",
     "nav_button_muted": "ปิดการแจ้งเตือน",
-    "nav_button_connecting": "การเชื่อมต่อ",
-    "nav_upgrade_banner_label": "อัพเกรดเป็น ntfy Pro"
+    "nav_button_connecting": "การเชื่อมต่อ"
 }

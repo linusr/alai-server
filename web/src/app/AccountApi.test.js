@@ -31,7 +31,6 @@ beforeEach(() => {
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
   session.token.mockReturnValue("test-token");
-  accountApi.tiers = null; // reset the billing-tiers cache between tests
   accountApi.listener = null;
 });
 
@@ -149,18 +148,6 @@ describe("AccountApi subscriptions", () => {
     expect(options.method).toBe("DELETE");
     expect(options.headers["X-BaseURL"]).toBe("https://ntfy.sh");
     expect(options.headers["X-Topic"]).toBe("mytopic");
-  });
-});
-
-describe("AccountApi.billingTiers", () => {
-  it("caches the tiers and only fetches once", async () => {
-    fetchMock.mockResolvedValue(ok([{ code: "pro" }]));
-    const first = await accountApi.billingTiers();
-    const second = await accountApi.billingTiers();
-
-    expect(first).toEqual([{ code: "pro" }]);
-    expect(second).toBe(first);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

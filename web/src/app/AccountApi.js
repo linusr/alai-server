@@ -1,7 +1,5 @@
 import i18n from "i18next";
 import {
-  accountBillingPortalUrl,
-  accountBillingSubscriptionUrl,
   accountEmailUrl,
   accountEmailVerifyUrl,
   accountEmailPrimaryUrl,
@@ -10,8 +8,6 @@ import {
   accountPasswordResetRequestUrl,
   accountPasswordResetUrl,
   accountPasswordUrl,
-  accountPhoneUrl,
-  accountPhoneVerifyUrl,
   accountReservationSingleUrl,
   accountReservationUrl,
   accountSettingsUrl,
@@ -19,7 +15,6 @@ import {
   accountTokenUrl,
   accountUrl,
   maybeWithBearerAuth,
-  tiersUrl,
   topicsUrl,
   withBasicAuth,
   withBearerAuth,
@@ -37,7 +32,6 @@ class AccountApi {
   constructor() {
     this.timer = null;
     this.listener = null; // Fired when account is fetched from remote
-    this.tiers = null; // Cached
   }
 
   registerListener(listener) {
@@ -273,97 +267,6 @@ class AccountApi {
     });
   }
 
-  async billingTiers() {
-    if (this.tiers) {
-      return this.tiers;
-    }
-    const url = tiersUrl(config.base_url);
-    console.log(`[AccountApi] Fetching billing tiers`);
-    const response = await fetchOrThrow(url); // No auth needed!
-    this.tiers = await response.json(); // May throw SyntaxError
-    return this.tiers;
-  }
-
-  async createBillingSubscription(tier, interval) {
-    console.log(`[AccountApi] Creating billing subscription with ${tier} and interval ${interval}`);
-    return this.upsertBillingSubscription("POST", tier, interval);
-  }
-
-  async updateBillingSubscription(tier, interval) {
-    console.log(`[AccountApi] Updating billing subscription with ${tier} and interval ${interval}`);
-    return this.upsertBillingSubscription("PUT", tier, interval);
-  }
-
-  async upsertBillingSubscription(method, tier, interval) {
-    const url = accountBillingSubscriptionUrl(config.base_url);
-    const response = await fetchOrThrow(url, {
-      method,
-      headers: withBearerAuth({}, session.token()),
-      body: JSON.stringify({
-        tier,
-        interval,
-      }),
-    });
-    return response.json(); // May throw SyntaxError
-  }
-
-  async deleteBillingSubscription() {
-    const url = accountBillingSubscriptionUrl(config.base_url);
-    console.log(`[AccountApi] Cancelling billing subscription`);
-    await fetchOrThrow(url, {
-      method: "DELETE",
-      headers: withBearerAuth({}, session.token()),
-    });
-  }
-
-  async createBillingPortalSession() {
-    const url = accountBillingPortalUrl(config.base_url);
-    console.log(`[AccountApi] Creating billing portal session`);
-    const response = await fetchOrThrow(url, {
-      method: "POST",
-      headers: withBearerAuth({}, session.token()),
-    });
-    return response.json(); // May throw SyntaxError
-  }
-
-  async verifyPhoneNumber(phoneNumber, channel) {
-    const url = accountPhoneVerifyUrl(config.base_url);
-    console.log(`[AccountApi] Sending phone verification ${url}`);
-    await fetchOrThrow(url, {
-      method: "PUT",
-      headers: withBearerAuth({}, session.token()),
-      body: JSON.stringify({
-        number: phoneNumber,
-        channel,
-      }),
-    });
-  }
-
-  async addPhoneNumber(phoneNumber, code) {
-    const url = accountPhoneUrl(config.base_url);
-    console.log(`[AccountApi] Adding phone number with verification code ${url}`);
-    await fetchOrThrow(url, {
-      method: "PUT",
-      headers: withBearerAuth({}, session.token()),
-      body: JSON.stringify({
-        number: phoneNumber,
-        code,
-      }),
-    });
-  }
-
-  async deletePhoneNumber(phoneNumber) {
-    const url = accountPhoneUrl(config.base_url);
-    console.log(`[AccountApi] Deleting phone number ${url}`);
-    await fetchOrThrow(url, {
-      method: "DELETE",
-      headers: withBearerAuth({}, session.token()),
-      body: JSON.stringify({
-        number: phoneNumber,
-      }),
-    });
-  }
-
   // startEmailVerification begins adding an email: the server stores a pending verification and
   // emails a magic link. The address is not verified until the link is clicked.
   async startEmailVerification(email) {
@@ -531,18 +434,6 @@ export const Role = {
 export const LimitBasis = {
   IP: "ip",
   TIER: "tier",
-};
-
-// Maps to stripe.SubscriptionStatus
-export const SubscriptionStatus = {
-  ACTIVE: "active",
-  PAST_DUE: "past_due",
-};
-
-// Maps to stripe.PriceRecurringInterval
-export const SubscriptionInterval = {
-  MONTH: "month",
-  YEAR: "year",
 };
 
 // Maps to user.Permission in user/types.go

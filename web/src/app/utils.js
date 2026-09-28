@@ -9,7 +9,6 @@ import config from "./config";
 import emojisMapped from "./emojisMapped";
 import { THEME, DATE_FORMAT, TIME_FORMAT } from "./Prefs";
 
-export const tiersUrl = (baseUrl) => `${baseUrl}/v1/tiers`;
 export const topicsUrl = (baseUrl) => `${baseUrl}/v1/topics`;
 export const shortUrl = (url) => url.replaceAll(/https?:\/\//g, "");
 export const expandUrl = (url) => [`https://${url}`, `http://${url}`];
@@ -31,10 +30,6 @@ export const accountSettingsUrl = (baseUrl) => `${baseUrl}/v1/account/settings`;
 export const accountSubscriptionUrl = (baseUrl) => `${baseUrl}/v1/account/subscription`;
 export const accountReservationUrl = (baseUrl) => `${baseUrl}/v1/account/reservation`;
 export const accountReservationSingleUrl = (baseUrl, topic) => `${baseUrl}/v1/account/reservation/${topic}`;
-export const accountBillingSubscriptionUrl = (baseUrl) => `${baseUrl}/v1/account/billing/subscription`;
-export const accountBillingPortalUrl = (baseUrl) => `${baseUrl}/v1/account/billing/portal`;
-export const accountPhoneUrl = (baseUrl) => `${baseUrl}/v1/account/phone`;
-export const accountPhoneVerifyUrl = (baseUrl) => `${baseUrl}/v1/account/phone/verify`;
 export const accountEmailUrl = (baseUrl) => `${baseUrl}/v1/account/email`;
 export const accountEmailVerifyUrl = (baseUrl) => `${baseUrl}/v1/account/email/verify`;
 export const accountEmailPrimaryUrl = (baseUrl) => `${baseUrl}/v1/account/email/primary`;
