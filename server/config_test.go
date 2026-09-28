@@ -5,6 +5,7 @@ import (
 	"heckel.io/ntfy/v2/server"
 	"heckel.io/ntfy/v2/user"
 	"testing"
+	"time"
 )
 
 func TestConfig_New(t *testing.T) {
@@ -28,6 +29,10 @@ func TestConfig_HashExcludesSecrets(t *testing.T) {
 	conf3 := server.NewConfig()
 	conf3.BaseURL = "https://ntfy.example.com"
 	assert.NotEqual(t, conf1.Hash(), conf3.Hash())
+}
+
+func TestConfig_New_CacheDurationThirtyDays(t *testing.T) {
+	assert.Equal(t, 30*24*time.Hour, server.NewConfig().CacheDuration)
 }
 
 func TestConfig_New_DenyAllByDefault(t *testing.T) {

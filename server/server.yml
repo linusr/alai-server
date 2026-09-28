@@ -87,7 +87,7 @@
 #   ntfy user and group by running: chown ntfy.ntfy <filename>.
 #
 # cache-file: <filename>
-# cache-duration: "12h"
+# cache-duration: "30d"
 # cache-startup-queries:
 # cache-batch-size: 0
 # cache-batch-timeout: "0ms"
