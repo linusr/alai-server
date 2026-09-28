@@ -161,8 +161,8 @@ func TestServer_PublishAndSubscribe(t *testing.T) {
 		require.Equal(t, "", messages[1].Title)
 		require.Equal(t, 0, messages[1].Priority)
 		require.Nil(t, messages[1].Tags)
-		require.True(t, time.Now().Add(12*time.Hour-5*time.Second).Unix() < messages[1].Expires)
-		require.True(t, time.Now().Add(12*time.Hour+5*time.Second).Unix() > messages[1].Expires)
+		require.True(t, time.Now().Add(DefaultCacheDuration-5*time.Second).Unix() < messages[1].Expires)
+		require.True(t, time.Now().Add(DefaultCacheDuration+5*time.Second).Unix() > messages[1].Expires)
 
 		require.Equal(t, model.MessageEvent, messages[2].Event)
 		require.Equal(t, "mytopic", messages[2].Topic)
@@ -489,8 +489,8 @@ func TestServer_PublishAt_Expires(t *testing.T) {
 		})
 		require.Equal(t, 200, response.Code)
 		m := toMessage(t, response.Body.String())
-		require.True(t, m.Expires > time.Now().Add(12*time.Hour+48*time.Hour-time.Minute).Unix())
-		require.True(t, m.Expires < time.Now().Add(12*time.Hour+48*time.Hour+time.Minute).Unix())
+		require.True(t, m.Expires > time.Now().Add(DefaultCacheDuration+48*time.Hour-time.Minute).Unix())
+		require.True(t, m.Expires < time.Now().Add(DefaultCacheDuration+48*time.Hour+time.Minute).Unix())
 	})
 }
 

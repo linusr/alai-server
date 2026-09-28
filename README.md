@@ -17,6 +17,7 @@ The HTTP API, message format and `ntfy` CLI stay compatible with ntfy, so ntfy c
 | Android push | Firebase Cloud Messaging (FCM) for ntfy.sh-connected apps | Not supported; the ntfy Android app uses its own connection |
 | Hosted-service features | Stripe payments, Twilio phone calls | Not included; tiers remain as a limits mechanism |
 | Web app | ntfy design | Redesigned, branded Alai |
+| Message history (`cache-duration`) | 12 hours | 30 days |
 | Anonymous access when auth is enabled | Read and write to every topic (`auth-default-access: read-write`) | Denied (`deny-all`); open topics to everyone explicitly, or set `auth-default-access` |
 
 APNs delivery requires an [Apple Developer Program](https://developer.apple.com/programs/) membership, since pushes

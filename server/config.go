@@ -16,7 +16,7 @@ import (
 // Defines default config settings (excluding limits, see below)
 const (
 	DefaultListenHTTP            = ":80"
-	DefaultCacheDuration         = 12 * time.Hour
+	DefaultCacheDuration         = 30 * 24 * time.Hour
 	DefaultCacheBatchTimeout     = time.Duration(0)
 	DefaultKeepaliveInterval     = 45 * time.Second // Not too frequently to save battery (Android read timeout used to be 77s!)
 	DefaultManagerInterval       = time.Minute

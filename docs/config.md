@@ -279,7 +279,7 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 </div>
 <div class="cg-field cg-inline-field">
 <label>How long should messages be cached?</label>
-<input type="text" data-key="cache-duration" placeholder="12h">
+<input type="text" data-key="cache-duration" placeholder="30d">
 </div>
 </div>
 <div class="cg-panel" id="cg-panel-attach">
@@ -476,7 +476,7 @@ notifications that they may have missed.
 By default, ntfy keeps messages **in-memory for 12 hours**, which means that **cached messages do not survive an application
 restart**. You can override this behavior by setting `cache-file` (SQLite) or `database-url` (PostgreSQL).
 
-* `cache-duration`: defines the duration for which messages are stored in the cache (default is `12h`). 
+* `cache-duration`: defines the duration for which messages are stored in the cache (default is `30d`; upstream ntfy uses `12h`). 
 
 You can also entirely disable the cache by setting `cache-duration` to `0`. When the cache is disabled, messages are only
 passed on to the connected subscribers, but never stored on disk or even kept in memory longer than is needed to forward
@@ -2203,7 +2203,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `database-url`                             | `NTFY_DATABASE_URL`                             | *string (connection URL)*                           | -                 | PostgreSQL connection string (e.g. `postgres://user:pass@host:5432/ntfy`). If set, uses PostgreSQL for all database-backed stores (message cache, user manager, web push) instead of SQLite. See [database options](#database-options). |
 | `database-replica-urls`                    | `NTFY_DATABASE_REPLICA_URLS`                    | *list of strings (connection URLs)*                 | -                 | PostgreSQL read replica connection strings. Non-critical read-only queries are distributed across replicas (round-robin) with automatic fallback to primary. Requires `database-url`.                                                   |
 | `cache-file`                               | `NTFY_CACHE_FILE`                               | *filename*                                          | -                 | If set, messages are cached in a local SQLite database instead of only in-memory. This allows for service restarts without losing messages in support of the since= parameter. See [message cache](#message-cache).                     |
-| `cache-duration`                           | `NTFY_CACHE_DURATION`                           | *duration*                                          | 12h               | Duration for which messages will be buffered before they are deleted. This is required to support the `since=...` and `poll=1` parameter. Set this to `0` to disable the cache entirely.                                                |
+| `cache-duration`                           | `NTFY_CACHE_DURATION`                           | *duration*                                          | 30d               | Duration for which messages will be buffered before they are deleted. This is required to support the `since=...` and `poll=1` parameter. Set this to `0` to disable the cache entirely.                                                |
 | `cache-startup-queries`                    | `NTFY_CACHE_STARTUP_QUERIES`                    | *string (SQL queries)*                              | -                 | SQL queries to run during database startup; this is useful for tuning and [enabling WAL mode](#message-cache)                                                                                                                           |
 | `cache-batch-size`                         | `NTFY_CACHE_BATCH_SIZE`                         | *int*                                               | 0                 | Max size of messages to batch together when writing to message cache (if zero, writes are synchronous)                                                                                                                                  |
 | `cache-batch-timeout`                      | `NTFY_CACHE_BATCH_TIMEOUT`                      | *duration*                                          | 0s                | Timeout for batched async writes to the message cache (if zero, writes are synchronous)                                                                                                                                                 |
@@ -2313,7 +2313,7 @@ OPTIONS:
    --key-file value, --key_file value, -K value                                                                           private key file, if listen-https is set [$NTFY_KEY_FILE]
    --cert-file value, --cert_file value, -E value                                                                         certificate file, if listen-https is set [$NTFY_CERT_FILE]
    --cache-file value, --cache_file value, -C value                                                                       cache file used for message caching [$NTFY_CACHE_FILE]
-   --cache-duration since, --cache_duration since, -b since                                                               buffer messages for this time to allow since requests (default: "12h") [$NTFY_CACHE_DURATION]
+   --cache-duration since, --cache_duration since, -b since                                                               buffer messages for this time to allow since requests (default: "30d") [$NTFY_CACHE_DURATION]
    --cache-batch-size value, --cache_batch_size value                                                                     max size of messages to batch together when writing to message cache (if zero, writes are synchronous) (default: 0) [$NTFY_BATCH_SIZE]
    --cache-batch-timeout value, --cache_batch_timeout value                                                               timeout for batched async writes to the message cache (if zero, writes are synchronous) (default: "0s") [$NTFY_CACHE_BATCH_TIMEOUT]
    --cache-startup-queries value, --cache_startup_queries value                                                           queries run when the cache database is initialized [$NTFY_CACHE_STARTUP_QUERIES]
