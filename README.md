@@ -1,6 +1,6 @@
 # Alai server
 
-A self-hosted push notification server, and the backend for the [Alai](https://github.com/linusr/ntfy-ios) iOS and
+A self-hosted push notification server, and the backend for the [Alai](https://github.com/linusr/alai) iOS and
 watchOS app. It is a hard fork of [ntfy](https://github.com/binwiederhier/ntfy) that delivers to iOS directly through
 Apple Push Notification service (APNs) and ships a redesigned web app.
 
@@ -13,7 +13,7 @@ The HTTP API, message format and `ntfy` CLI stay compatible with ntfy, so ntfy c
 |---|---|---|
 | iOS delivery from a self-hosted server | Poll request relayed through ntfy.sh and Firebase | Direct to APNs with your own auth key |
 | Message content in push | `New message`; the app fetches the content | Full message, or IDs only with `apns-payload: minimal` |
-| iOS app | Official ntfy app | [Alai](https://github.com/linusr/ntfy-ios), built and signed by your Apple Developer team |
+| iOS app | Official ntfy app | [Alai](https://github.com/linusr/alai), built and signed by your Apple Developer team |
 | Android push | Firebase Cloud Messaging (FCM) for ntfy.sh-connected apps | Not supported; the ntfy Android app uses its own connection |
 | Hosted-service features | Stripe payments, Twilio phone calls | Not included; tiers remain as a limits mechanism |
 | Web app | ntfy design | Redesigned, branded Alai |
@@ -38,12 +38,12 @@ selectively rather than merged; [UPSTREAM.md](UPSTREAM.md) holds the policy and 
   `firebase-key-file`, `upstream-base-url`, `upstream-access-token`, `stripe-secret-key`, `stripe-webhook-key`,
   `billing-contact` and `twilio-*` are ignored with a warning at startup. Publishing with `X-Call` returns HTTP 400;
   the `X-Firebase` header is accepted and ignored.
-- [Alai](https://github.com/linusr/ntfy-ios) also works with stock ntfy servers, without instant push, since they
+- [Alai](https://github.com/linusr/alai) also works with stock ntfy servers, without instant push, since they
   have no `/v1/apns` endpoint.
 
 ## Running
 
-Images for `linux/amd64` and `linux/arm64` are published to `ghcr.io/linusr/ntfy`:
+Images for `linux/amd64` and `linux/arm64` are published to `ghcr.io/linusr/alai-server`:
 
 | Tag | Source |
 |---|---|
@@ -88,7 +88,7 @@ be built by the same team whose key the server uses.
 ### 1. Register the app
 
 The app's bundle ID (e.g. `me.4vr.alai`) must exist under your team with the Push Notifications capability. Building
-[Alai](https://github.com/linusr/ntfy-ios) to a device with automatic signing registers it; otherwise add it under
+[Alai](https://github.com/linusr/alai) to a device with automatic signing registers it; otherwise add it under
 *Certificates, Identifiers & Profiles → Identifiers*.
 
 ### 2. Create an APNs auth key

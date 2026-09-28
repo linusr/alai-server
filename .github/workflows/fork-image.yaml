@@ -9,7 +9,7 @@ permissions:
   packages: write
 jobs:
   image:
-    if: github.repository == 'linusr/ntfy'
+    if: github.repository == 'linusr/alai-server'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
