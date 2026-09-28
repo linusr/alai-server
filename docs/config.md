@@ -416,8 +416,8 @@ When `database-url` is set, ntfy will use PostgreSQL for the [message cache](#me
 `auth-file`, and `web-push-file` options **must not** be set in this case.
 
 Note that setting `database-url` implicitly enables authentication and access control (equivalent to setting
-`auth-file` with SQLite). The default access is `read-write`, so anonymous users can still read and write to all
-topics. To restrict access, set `auth-default-access` to `deny-all` (see [access control](#access-control)).
+`auth-file` with SQLite). The default access is `deny-all`, so anonymous users cannot read or write any topic
+unless it is opened to everyone (see [access control](#access-control)).
 
 You can also set this via the environment variable `NTFY_DATABASE_URL` or the command line flag `--database-url`.
 
@@ -612,8 +612,8 @@ To set up auth, **configure the following options**:
   location `/var/lib/ntfy/user.db` (easiest if deb/rpm package is used). Alternatively, if `database-url` is set, 
   auth is automatically enabled using PostgreSQL (see [database options](#database-options)).
 * `auth-default-access` defines the default/fallback access if no access control entry is found; it can be
-  set to `read-write` (default), `read-only`, `write-only` or `deny-all`. **If you are setting up a private instance,
-  you'll want to set this to `deny-all`** (see [private instance example](#example-private-instance)).
+  set to `read-write`, `read-only`, `write-only` or `deny-all` (default). Upstream ntfy defaults to `read-write`;
+  this server denies anonymous access unless configured otherwise (see [private instance example](#example-private-instance)).
 
 Once configured, you can use 
 
@@ -2208,7 +2208,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `cache-batch-size`                         | `NTFY_CACHE_BATCH_SIZE`                         | *int*                                               | 0                 | Max size of messages to batch together when writing to message cache (if zero, writes are synchronous)                                                                                                                                  |
 | `cache-batch-timeout`                      | `NTFY_CACHE_BATCH_TIMEOUT`                      | *duration*                                          | 0s                | Timeout for batched async writes to the message cache (if zero, writes are synchronous)                                                                                                                                                 |
 | `auth-file`                                | `NTFY_AUTH_FILE`                                | *filename*                                          | -                 | Auth database file used for access control (SQLite). If set, enables authentication and access control. Not required if `database-url` is set. See [access control](#access-control).                                                   |
-| `auth-default-access`                      | `NTFY_AUTH_DEFAULT_ACCESS`                      | `read-write`, `read-only`, `write-only`, `deny-all` | `read-write`      | Default permissions if no matching entries in the auth database are found. Default is `read-write`.                                                                                                                                     |
+| `auth-default-access`                      | `NTFY_AUTH_DEFAULT_ACCESS`                      | `read-write`, `read-only`, `write-only`, `deny-all` | `deny-all`        | Default permissions if no matching entries in the auth database are found. Default is `deny-all`.                                                                                                                                       |
 | `auth-access-cache`                        | `NTFY_AUTH_ACCESS_CACHE`                        | *bool*                                              | false             | Enables an in-memory ACL cache so authorization checks no longer hit the database. Only worth enabling on high-volume servers.                                                                                                          |
 | `behind-proxy`                             | `NTFY_BEHIND_PROXY`                             | *bool*                                              | false             | If set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting)                                                                                                                    |
 | `proxy-forwarded-header`                   | `NTFY_PROXY_FORWARDED_HEADER`                   | *string*                                            | `X-Forwarded-For` | Use specified header to determine visitor IP address (for rate limiting)                                                                                                                                                                |
@@ -2319,7 +2319,7 @@ OPTIONS:
    --cache-startup-queries value, --cache_startup_queries value                                                           queries run when the cache database is initialized [$NTFY_CACHE_STARTUP_QUERIES]
    --auth-file value, --auth_file value, -H value                                                                         auth database file used for access control [$NTFY_AUTH_FILE]
    --auth-startup-queries value, --auth_startup_queries value                                                             queries run when the auth database is initialized [$NTFY_AUTH_STARTUP_QUERIES]
-   --auth-default-access value, --auth_default_access value, -p value                                                     default permissions if no matching entries in the auth database are found (default: "read-write") [$NTFY_AUTH_DEFAULT_ACCESS]
+   --auth-default-access value, --auth_default_access value, -p value                                                     default permissions if no matching entries in the auth database are found (default: "deny-all") [$NTFY_AUTH_DEFAULT_ACCESS]
    --auth-access-cache, --auth_access_cache                                                                                enables the in-memory ACL cache (high-volume servers only) (default: false) [$NTFY_AUTH_ACCESS_CACHE]
    --attachment-cache-dir value, --attachment_cache_dir value                                                             cache directory for attached files, or S3 URL (s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT][&disable_http2=true]) [$NTFY_ATTACHMENT_CACHE_DIR]
    --attachment-total-size-limit value, --attachment_total_size_limit value, -A value                                     limit of the on-disk attachment cache (default: "5G") [$NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT]

@@ -248,7 +248,7 @@ func NewConfig() *Config {
 		CacheBatchTimeout:                    0,
 		AuthFile:                             "",
 		AuthStartupQueries:                   "",
-		AuthDefault:                          user.PermissionReadWrite,
+		AuthDefault:                          user.PermissionDenyAll,
 		AuthBcryptCost:                       user.DefaultUserPasswordBcryptCost,
 		AuthStatsQueueWriterInterval:         user.DefaultUserStatsQueueWriterInterval,
 		AuthAccessCacheEnabled:               user.DefaultAccessCacheEnabled,

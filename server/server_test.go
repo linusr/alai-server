@@ -4827,6 +4827,7 @@ func forEachBackend(t *testing.T, f func(t *testing.T, databaseURL string)) {
 func newTestConfig(t *testing.T, databaseURL string) *Config {
 	conf := NewConfig()
 	conf.BaseURL = "http://127.0.0.1:12345"
+	conf.AuthDefault = user.PermissionReadWrite // Most tests rely on anonymous access; access control tests set their own
 	if databaseURL != "" {
 		conf.DatabaseURL = databaseURL
 	} else {
