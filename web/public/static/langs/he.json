@@ -68,6 +68,5 @@
     "nav_button_publish_message": "פרסום התראה",
     "nav_button_subscribe": "הרשמה לנושא",
     "nav_button_muted": "התראות הושתקו",
-    "nav_button_connecting": "מתחבר",
-    "nav_upgrade_banner_label": "שדרוג ל־ntfy Pro"
+    "nav_button_connecting": "מתחבר"
 }

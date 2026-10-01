@@ -50,8 +50,6 @@
     "nav_button_publish_message": "Publiko njoftimin",
     "nav_button_subscribe": "Abunohu tek tema",
     "nav_button_connecting": "duke u lidhur",
-    "nav_upgrade_banner_label": "Përmirëso në ntfy Pro",
-    "nav_upgrade_banner_description": "Rezervoni tema, më shumë mesazhe dhe email-e, si dhe bashkëngjitje më të mëdha",
     "nav_button_muted": "Njoftimet janë të fikura",
     "alert_notification_permission_required_title": "Njoftimet janë të çaktivizuar",
     "alert_notification_permission_required_description": "Jepni leje Browser-it tuaj për të shfaqur njoftimet në desktop",
