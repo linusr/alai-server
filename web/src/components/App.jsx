@@ -71,7 +71,7 @@ const App = () => {
 
   return (
     <Suspense fallback={<Loader />}>
-      {/* Synchronous route updates: fadeNavigate fades #root back in right after navigate() returns. */}
+      {/* No startTransition on route updates, so the new page commits early in fadeNavigate's fade-in. */}
       <BrowserRouter useTransitions={false}>
         <AccountContext.Provider value={accountMemo}>
           <TooltipProvider>

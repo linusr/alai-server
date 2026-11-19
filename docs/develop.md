@@ -78,8 +78,8 @@ goreleaser -v   # verifies that it worked
 ```
 
 Install [nodejs](https://nodejs.org/en/) (see [official instructions](https://nodejs.org/en/download/package-manager/)).
-Use a current LTS release (Node 24 is what CI builds with; anything older than Node 22.12 will not work
-with the current Vite-based web build):
+Use a current LTS release (Node 24 is what CI builds with; the Vite build needs Node 20.19+, and the
+vitest tests need Node 22.12+ or 24):
 ``` shell
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs
