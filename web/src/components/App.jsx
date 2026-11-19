@@ -71,7 +71,8 @@ const App = () => {
 
   return (
     <Suspense fallback={<Loader />}>
-      <BrowserRouter>
+      {/* Synchronous route updates: fadeNavigate fades #root back in right after navigate() returns. */}
+      <BrowserRouter useTransitions={false}>
         <AccountContext.Provider value={accountMemo}>
           <TooltipProvider>
             <ToastProvider>
