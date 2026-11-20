@@ -353,6 +353,10 @@ template-check: FORCE
 		echo "ERROR: template/gotext was generated from $$(cat template/gotext/GENERATED_FROM), but .go-version pins $(TEMPLATE_GO_VERSION). Run 'make update-template' on the pinned Go."; \
 		exit 1; \
 	fi
+	@if ! grep -q "^FROM golang:$$(cat .go-version)-" Dockerfile-build; then \
+		echo "ERROR: Dockerfile-build's golang image does not match .go-version ($$(cat .go-version)); update its FROM line."; \
+		exit 1; \
+	fi
 	@if [ "$$(go env GOVERSION)" != "$(TEMPLATE_GO_VERSION)" ]; then \
 		echo "SKIP: local Go $$(go env GOVERSION) != pinned $(TEMPLATE_GO_VERSION); skipping vendored template content check (version marker already verified)."; \
 		exit 0; \
@@ -380,7 +384,7 @@ go-check: FORCE
 	if [ -n "$$latest" ] && [ "$$latest" != "$(TEMPLATE_GO_VERSION)" ]; then \
 		echo ""; \
 		echo "note: latest Go is $$latest, but template/gotext is pinned to $(TEMPLATE_GO_VERSION) (.go-version)."; \
-		echo "      to bump: install $$latest, set .go-version to $${latest#go}, then run 'make update-template'."; \
+		echo "      to bump: install $$latest, set .go-version and Dockerfile-build's FROM to $${latest#go}, then run 'make update-template'."; \
 	fi
 
 

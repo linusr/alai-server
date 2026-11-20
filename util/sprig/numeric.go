@@ -393,7 +393,8 @@ func round(a any, p int, rOpt ...float64) float64 {
 	places := toFloat64(p)
 	var round float64
 	pow := math.Pow(10, places)
-	digit := pow * val
+	// The explicit conversion rounds the product, stopping arm64 from fusing it into Modf's subtraction.
+	digit := float64(pow * val)
 	_, div := math.Modf(digit)
 	if div >= roundOn {
 		round = math.Ceil(digit)
